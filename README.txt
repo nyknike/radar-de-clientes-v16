@@ -1,3 +1,16 @@
+RADAR DE CLIENTES — V16.2.0
+
+NOVIDADES V16.2.0
+- Etapa final do editor: prévia pública do projeto salvo.
+- Revisão automática preliminar de campos básicos, contato, imagens, conteúdo de exemplo e domínio.
+- Cadastro de domínio personalizado por projeto, com verificação honesta do estado de integração.
+- Botão “Salvar cliente e voltar ao início”: salva o projeto, volta o assistente comercial ao início e mantém o site na lista “Meus sites”.
+- Ações diretas em cada projeto: Revisar site e Domínio/hospedagem.
+- O domínio não é considerado conectado e a hospedagem não é considerada publicada sem confirmação real do servidor/provedor.
+
+IMPORTANTE
+A conexão efetiva de domínio personalizado ainda depende de domínio registrado, DNS e credenciais/configuração do provedor no servidor. A revisão é preliminar e não substitui testes após publicação. Esta versão não altera as variáveis de ambiente nem apaga o serviço existente.
+
 RADAR DE CLIENTES — V16.1.0
 
 O QUE MUDA NA V16.1.0

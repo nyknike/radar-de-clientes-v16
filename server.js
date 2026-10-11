@@ -9,7 +9,7 @@ const ROOT = process.cwd();
 app.use(express.json({limit:"25mb"}));
 app.use((req,res,next)=>{ if(req.path==="/"||req.path==="/index.html"||(req.path.startsWith("/demo/")||req.path.startsWith("/site/"))||req.path.endsWith(".js")||req.path.endsWith(".css")){res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");res.setHeader("Pragma","no-cache");res.setHeader("Expires","0");} next(); });
 
-// V16.1.0: o banco remoto é obrigatório em produção. O arquivo local é apenas
+// V16.2.0: o banco remoto é obrigatório em produção. O arquivo local é apenas
 // fallback de desenvolvimento; o disco efêmero do Render não é armazenamento durável.
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "radar-state.json");
@@ -97,7 +97,7 @@ const cfg = {
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V16.1.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V16.2.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -159,7 +159,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V16.1.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V16.2.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -251,4 +251,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V16.1.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V16.2.0 em http://localhost:${PORT}`));
