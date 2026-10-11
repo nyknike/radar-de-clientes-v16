@@ -1,6 +1,6 @@
 {
   "name": "radar-de-clientes-backend",
-  "version": "16.0.0",
+  "version": "16.1.0",
   "private": true,
   "type": "module",
   "scripts": {"start":"node server.js"},

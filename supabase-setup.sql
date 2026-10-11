@@ -1,4 +1,4 @@
--- Radar de Clientes V16.0.0
+-- Radar de Clientes V16.1.0
 -- Execute no SQL Editor do projeto Supabase que será usado pelo backend.
 create table if not exists public.radar_state (
   id integer primary key check (id = 1),

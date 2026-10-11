@@ -1,8 +1,16 @@
-RADAR DE CLIENTES — V16.0.0
+RADAR DE CLIENTES — V16.1.0
+
+O QUE MUDA NA V16.1.0
+- Adiciona personalização visual direta para cores principal, secundária, fundo da página, texto e superfícies/cartões.
+- Adiciona controles de tamanho dos títulos e do texto, com valores ajustáveis.
+- Adiciona troca da imagem principal por URL ou envio de arquivo.
+- Mantém o seletor de família de fontes, a galeria e as propostas visuais existentes.
+- As personalizações são guardadas no projeto e seguem para a prévia/publicação.
+
 
 Esta versão preserva a interface existente (Radar, Designer, ADM, Meus Sites, pipeline comercial e prévia) e corrige a infraestrutura dos links públicos. O backend Express precisa ser publicado como Web Service Node, não como Static Site.
 
-O QUE MUDA NA V16.0.0
+O QUE MUDA NA V16.0.0 (base técnica mantida)
 - Configuração de Render Blueprint como Web Service Node, com npm install / npm start e health check em /api/health.
 - O backend registra e resolve os sites em /api/public-sites/:id e /api/site/:id, e entrega a mesma página pública /site/:id que o Radar usa para abrir/enviar a demonstração.
 - Supabase é verificado de verdade; não basta apenas preencher variáveis de ambiente.
@@ -28,8 +36,8 @@ CONFIGURAÇÃO NO RENDER
 - Só depois de o serviço novo passar no teste de saúde, use o domínio do serviço Web como endereço principal. O serviço Static Site antigo não é alterado por este ZIP.
 
 TESTE APÓS DEPLOY
-1. Abra https://SEU-SERVICO.onrender.com/api/health. Confirme version=V16.0.0, storage.connected=true e persistentStorage=true.
-2. Abra a página principal e confirme V16.0.0 no cabeçalho.
+1. Abra https://SEU-SERVICO.onrender.com/api/health. Confirme version=V16.1.0, storage.connected=true e persistentStorage=true.
+2. Abra a página principal e confirme V16.1.0 no cabeçalho.
 3. Crie ou abra um site, clique em “Salvar e publicar” ou “Enviar demonstração”. O Radar só deve copiar/enviar o link depois de o backend confirmar o registro.
 4. Abra o link copiado em janela anônima ou outro dispositivo. Ele deve abrir o site, sem exigir localStorage ou login do painel.
 5. Reinicie/republique o serviço e repita o teste. O site deve continuar disponível porque o estado está no Supabase.
@@ -41,3 +49,11 @@ LIMITES CONHECIDOS
 - O banco guarda o estado do Radar em uma linha JSONB, adequada para começar com uso individual/baixo volume; não é um banco multiusuário transacional para muitos editores simultâneos.
 - Este ZIP prepara o código e a configuração, mas não cria a conta Supabase, não adiciona segredos ao Render e não publica por conta própria. Esses passos exigem acesso/ação na conta do proprietário.
 - Pagamento, publicação Cloudflare e domínio continuam exigindo configuração própria; não são necessários para testar o link público.
+
+
+EDITOR VISUAL V16.1.0
+- Abra Meus sites > Editar dados/ADM > aba Visual.
+- Use os seletores de cor para alterar cor principal, secundária, fundo, texto e superfícies.
+- Ajuste tamanho dos títulos e do texto com os controles deslizantes.
+- Troque a imagem principal usando uma URL ou enviando um arquivo. Para outras imagens, use a galeria e os seletores das propostas.
+- Confira a aba Prévia e use Salvar ou Salvar e publicar para persistir as mudanças.
