@@ -38,3 +38,7 @@
 
 /* V16.1.0 — painel de personalização visual */
 .visual-custom-panel{margin:22px 0;padding:18px;border:1px solid var(--line,#d8dce4);border-radius:16px;background:var(--panel,#fff)}.visual-custom-panel>p{color:var(--muted,#667085);font-size:14px;line-height:1.5}.visual-custom-panel .admin-grid{align-items:end}.visual-custom-panel input[type="color"]{width:100%;min-height:44px;padding:4px;border-radius:9px;cursor:pointer}.visual-custom-panel input[type="range"]{width:100%;accent-color:var(--accent,#536dfe)}.visual-custom-panel output{font-weight:700;margin-left:6px}.visual-custom-panel input[type="file"]{display:block;width:100%;margin-top:8px}
+/* V18: prévia pública real embutida na etapa final */
+.public-preview-frame{margin-top:12px;border:1px solid rgba(120,130,150,.28);}
+.public-preview-frame iframe{width:100%;height:70vh;min-height:420px;background:#fff;border:0;border-radius:10px;}
+#publicPreviewWrap[hidden],#publicPreviewStatus[hidden]{display:none!important;}
