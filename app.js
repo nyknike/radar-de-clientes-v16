@@ -181,7 +181,8 @@ async function persistServerState(){
 async function publishPublicRegistry(p){
   if(!p?.id)return false;
   try{
-    const r=await fetch(`/api/public-sites/${encodeURIComponent(String(p.id))}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({platform:norm(JSON.parse(JSON.stringify(p)))})});
+    const clean=norm(JSON.parse(JSON.stringify(p)));
+     const r=await fetch(`/api/public-sites/${encodeURIComponent(String(p.id))}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({platform:clean,html:fullDoc(clean)})});
     if(!r.ok)return false;
     const check=await fetch(`/api/site/${encodeURIComponent(String(p.id))}`,{cache:"no-store"});
     const d=await check.json().catch(()=>({}));
@@ -467,14 +468,21 @@ async function sendDemo(id){
 async function refreshDemoStatus(id){try{const r=await fetch(`/api/demo/${encodeURIComponent(id)}`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Não foi possível consultar o servidor.");const i=sales.findIndex(s=>String(s.id)===String(id));if(i>=0){sales[i]={...sales[i],...d.sale};saveSales()}alert(`Demonstração: ${d.sale.demoViewedAt?"visualizada":"ainda não visualizada"}. ${d.sale.approvedAt?"Cliente aprovou.":"Aprovação ainda pendente."}`)}catch(e){alert("Não foi possível atualizar agora. Verifique se o backend está publicado e tente novamente.")}}
 function copy(t){if(navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{})}
 async function publish(id){
- const p=platforms.find(x=>x.id===id);if(!p)return false;
- if(!p.published){p.published=true;save()}
- const sale=sales.find(s=>String(s.businessId)===String(p.id)||s.name===p.name);
- if(sale){sale.stage="published";sale.publishedUrl=publicSiteLinkFor(p);sale.updatedAt=new Date().toISOString();saveSales()}
- setStatus("Publicando site no servidor...");
- const ok=await publishPublicRegistry(p);
- if(!ok){setStatus("Publicação pública não confirmada. O link não foi copiado.",true);alert("O servidor não confirmou este site público. O link NÃO foi copiado para evitar Not Found. Verifique o deploy e tente publicar novamente.");return false}
- const url=publicSiteLinkFor(p);copy(url);setStatus("Site público confirmado e link copiado.");alert("Site público confirmado no servidor!\n\n"+url);return true
+ const p=platforms.find(x=>String(x.id)===String(id));if(!p)return false;
+ setStatus("Salvando a versão pública do site...");
+ const registered=await publishPublicRegistry(p);
+ if(!registered){setStatus("Não foi possível salvar a versão pública.",true);alert("O servidor não confirmou o salvamento do site. Confira a conexão e tente novamente.");return false}
+ let url=`${location.origin}/site/${encodeURIComponent(String(p.id))}`;
+ try{
+   const r=await fetch("/api/publish/cloudflare",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:String(p.id)})});
+   const d=await r.json().catch(()=>({}));
+   if(r.ok&&d.ok&&d.url){p.cloudflareUrl=d.url;p.cloudflareProject=d.project;p.published=true;save();url=d.url;}
+   else if(d.configured!==false){setStatus(d.error||"A publicação na Cloudflare falhou.",true);alert((d.error||"A publicação na Cloudflare falhou.")+"\n\nO projeto foi salvo no Radar, mas não vou marcar o site como publicado na Cloudflare.");return false;}
+   else {p.published=true;save();}
+ }catch(e){setStatus("Não foi possível confirmar a publicação Cloudflare.",true);alert("O site foi salvo no Radar, mas a publicação externa não foi confirmada. Confira o deploy e tente novamente.");return false}
+ const sale=sales.find(s=>String(s.businessId)===String(p.id)||String(s.platformId)===String(p.id)||s.name===p.name);
+ if(sale){sale.stage="published";sale.publishedUrl=url;sale.updatedAt=new Date().toISOString();saveSales()}
+ copy(url);setStatus("Site salvo e endereço de publicação copiado.");alert("Publicação confirmada.\n\n"+url);return true
 }
 function openPreview(id){const p=platforms.find(x=>x.id===id);if(!p)return;previewId=id;const sale=sales.find(s=>String(s.businessId)===String(p.id)||s.name===p.name);if(sale&&stageIndex(sale.stage)<stageIndex("preview"))advanceSale(sale.id,"preview");drawPreview();$("previewDialog").showModal()}
 function drawPreview(){const p=platforms.find(x=>x.id===previewId);$("pvFrame").style.width=dev==="mobile"?"390px":"100%";$("pvFrame").srcdoc=fullDoc(p)}
