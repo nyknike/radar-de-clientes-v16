@@ -1,4 +1,4 @@
-RADAR DE CLIENTES — V19.0.0
+RADAR DE CLIENTES — V20.0.0
 
 BASE PRESERVADA
 Esta versão parte da V18.0.0 e preserva o painel de prospecção, designer, projetos salvos, prévia pública, revisão automática, estado no Supabase e fluxo comercial.
@@ -20,11 +20,11 @@ Manter também SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, além de NODE_ENV=produ
 
 COMO SUBIR AO GITHUB/RENDER
 1. Faça backup do repositório atual antes de substituir arquivos.
-2. Extraia o ZIP e envie o CONTEÚDO da pasta radar-de-clientes-v19.0.0 para a raiz do repositório GitHub conectado ao Render. Não envie a pasta pai como uma segunda pasta dentro do repositório.
+2. Extraia o ZIP e envie o CONTEÚDO da pasta radar-de-clientes-v20.0.0 para a raiz do repositório GitHub conectado ao Render. Não envie a pasta pai como uma segunda pasta dentro do repositório.
 3. Inclua server.js, app.js, index.html, style.css, package.json, render.yaml, logo.png, supabase-setup.sql e README.txt.
 4. Faça commit e push para a branch que o Render usa (geralmente main). O Render executará npm install e npm start.
 5. Não remova nem substitua variáveis secretas já existentes no Render. Confirme CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID na seção Environment.
-6. Após o deploy, abra /api/health e confira version=V19.0.0, persistentStorage=true e integrations.hosting=cloudflare.
+6. Após o deploy, abra /api/health e confira version=V20.0.0, persistentStorage=true e integrations.hosting=cloudflare.
 7. Publique um site de teste. O primeiro deploy cria o projeto Pages se ainda não existir. A URL deverá ser https://radar-clientes-sites.pages.dev/site/ID/ (ou o nome configurado).
 
 IMPORTANTE SOBRE GITHUB
