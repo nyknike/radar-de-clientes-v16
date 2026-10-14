@@ -1,4 +1,4 @@
-RADAR DE CLIENTES — V20.2.0
+RADAR DE CLIENTES — V20.3.0
 
 BASE PRESERVADA
 Esta versão parte da V18.0.0 e preserva o painel de prospecção, designer, projetos salvos, prévia pública, revisão automática, estado no Supabase e fluxo comercial.
@@ -20,11 +20,11 @@ Manter também SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, além de NODE_ENV=produ
 
 COMO SUBIR AO GITHUB/RENDER
 1. Faça backup do repositório atual antes de substituir arquivos.
-2. Extraia o ZIP e envie o CONTEÚDO da pasta radar-de-clientes-v20.2.0 para a raiz do repositório GitHub conectado ao Render. Não envie a pasta pai como uma segunda pasta dentro do repositório.
+2. Extraia o ZIP e envie o CONTEÚDO da pasta radar-de-clientes-v20.3.0 para a raiz do repositório GitHub conectado ao Render. Não envie a pasta pai como uma segunda pasta dentro do repositório.
 3. Inclua server.js, app.js, index.html, style.css, package.json, render.yaml, logo.png, supabase-setup.sql e README.txt.
 4. Faça commit e push para a branch que o Render usa (geralmente main). O Render executará npm install e npm start.
 5. Não remova nem substitua variáveis secretas já existentes no Render. Confirme CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID na seção Environment.
-6. Após o deploy, abra /api/health e confira version=V20.2.0, persistentStorage=true e integrations.hosting=cloudflare.
+6. Após o deploy, abra /api/health e confira version=V20.3.0, persistentStorage=true e integrations.hosting=cloudflare.
 7. Publique um site de teste. O primeiro deploy cria o projeto Pages se ainda não existir. A URL deverá ser https://radar-clientes-sites.pages.dev/site/ID/ (ou o nome configurado).
 
 IMPORTANTE SOBRE GITHUB
@@ -39,14 +39,14 @@ LIMITES E SEGURANÇA
 - Pagamentos automáticos e conexão automática de domínio personalizado ainda não estão implementados nesta versão.
 
 
-V20.2.0 — AJUSTES DE EDITOR E VALIDAÇÃO
+V20.3.0 — AJUSTES DE EDITOR E VALIDAÇÃO
 - Versão sincronizada no selo, título, API /api/health, status público e log do servidor.
 - Formato de imagem aplicado também às imagens dos cards de produtos/cardápio.
 - Tipografia herdada de forma consistente nos componentes do site.
 - Envio de imagem atualiza o editor e mostra orientação para salvar.
 
 TESTES ANTES DE CONSIDERAR PRONTO
-1. Confirmar /api/health retorna version=V20.2.0.
+1. Confirmar /api/health retorna version=V20.3.0.
 2. Criar projeto de teste, mudar fonte, tamanho de título/texto e formato das imagens.
 3. Enviar imagem própria, salvar, reabrir e confirmar persistência.
 4. Criar cardápio completo e testar adicionar/remover itens, quantidades, total e link WhatsApp.
@@ -54,3 +54,13 @@ TESTES ANTES DE CONSIDERAR PRONTO
 6. Publicar na Cloudflare com credenciais reais e abrir a URL pública.
 
 Atenção: estes ajustes não comprovam por si só a publicação real na Cloudflare. O fluxo de pedidos usa WhatsApp e não processa pagamentos. A rota de publicação ainda precisa de autenticação administrativa antes de uso comercial.
+
+
+V20.3.0 — base inicial de reservas/pedidos e caixa de entrada administrativa
+- Estado persistente agora inclui reservations e orders (Supabase JSON state).
+- Rotas públicas de entrada: POST /api/intake/reservations e POST /api/intake/orders.
+- Rotas privadas: GET /api/admin/inbox?siteId=ID, PATCH /api/admin/reservations/ID, PATCH /api/admin/orders/ID.
+- Para habilitar endpoints privados, configure ADMIN_PANEL_SECRET nas variáveis de ambiente do Render. Envie-o apenas no cabeçalho Authorization: Bearer; nunca coloque o segredo no HTML público ou no link compartilhado.
+- As rotas de intake só aceitam siteId já registrado no armazenamento de sites publicados. As reservas ficam pendentes; não há confirmação automática nem bloqueio real de agenda nesta versão.
+- IMPORTANTE: esta é uma base de backend, ainda não um painel visual completo. Os formulários públicos atuais ainda precisam ser ligados a estas rotas; a caixa de entrada visual, autenticação individual por estabelecimento e notificações automáticas são etapas posteriores.
+- Teste de sintaxe realizado; publicação real no Render/Cloudflare não foi verificada nesta etapa.

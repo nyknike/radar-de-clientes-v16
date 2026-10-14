@@ -18,14 +18,16 @@ app.use((req,res,next)=>{ if(req.path==="/"||req.path==="/index.html"||(req.path
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "radar-state.json");
 const isProduction = process.env.NODE_ENV === "production";
-let state = { sales: [], platforms: [], events: [], publishedSites: [] };
+let state = { sales: [], platforms: [], events: [], publishedSites: [], reservations: [], orders: [] };
 const storage = { configured: false, connected: false, error: null, checkedAt: null };
 function normalizeState(x={}) {
   return {
     sales: Array.isArray(x.sales) ? x.sales : [],
     platforms: Array.isArray(x.platforms) ? x.platforms : [],
     events: Array.isArray(x.events) ? x.events : [],
-    publishedSites: Array.isArray(x.publishedSites) ? x.publishedSites : []
+    publishedSites: Array.isArray(x.publishedSites) ? x.publishedSites : [],
+    reservations: Array.isArray(x.reservations) ? x.reservations : [],
+    orders: Array.isArray(x.orders) ? x.orders : []
   };
 }
 function loadState(){
@@ -101,7 +103,7 @@ const cfg = {
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V20.2.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V20.3.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -167,7 +169,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V20.2.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V20.3.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -183,6 +185,78 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   sale.updatedAt=new Date().toISOString();
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível registrar o evento no armazenamento persistente."});
   res.json({ok:true,event,sale});
+});
+
+// V20.3.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
+// Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
+const intakeLimits = new Map();
+function limitIntake(req,res,next){
+  const key=String(req.ip||req.socket?.remoteAddress||"unknown");
+  const now=Date.now(), old=intakeLimits.get(key)||[];
+  const recent=old.filter(t=>now-t<60000);
+  if(recent.length>=12) return res.status(429).json({ok:false,error:"Muitas solicitações em pouco tempo. Aguarde um minuto."});
+  recent.push(now); intakeLimits.set(key,recent); next();
+}
+function cleanText(v,max=500){return String(v??"").replace(/[<>\u0000-\u001f]/g,"").trim().slice(0,max)}
+function adminAuth(req,res,next){
+  const expected=process.env.ADMIN_PANEL_SECRET;
+  if(!expected) return res.status(503).json({ok:false,error:"Painel administrativo ainda não configurado. Defina ADMIN_PANEL_SECRET no Render."});
+  const supplied=String(req.get("authorization")||"").replace(/^Bearer\s+/i,"");
+  const a=Buffer.from(supplied), b=Buffer.from(expected);
+  if(a.length!==b.length||!crypto.timingSafeEqual(a,b)) return res.status(401).json({ok:false,error:"Acesso administrativo não autorizado."});
+  next();
+}
+app.post("/api/intake/reservations", limitIntake, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const b=req.body||{};
+  const siteId=cleanText(b.siteId,120), name=cleanText(b.name,120), contact=cleanText(b.contact,120), date=cleanText(b.date,10), time=cleanText(b.time,10);
+  if(!siteId||!name||!contact||!date||!time) return res.status(400).json({ok:false,error:"Informe estabelecimento, nome, contato, data e horário."});
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)) return res.status(400).json({ok:false,error:"Data ou horário inválido."});
+  const site=state.publishedSites.find(x=>String(x.id)===siteId);
+  if(!site) return res.status(404).json({ok:false,error:"Estabelecimento não encontrado."});
+  const item={id:crypto.randomUUID(),siteId,name,contact,date,time,people:Math.max(1,Math.min(30,Number(b.people)||1)),service:cleanText(b.service,160),professional:cleanText(b.professional,120),notes:cleanText(b.notes,1000),status:"pending",createdAt:new Date().toISOString()};
+  state.reservations.push(item);
+  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar a solicitação. Tente novamente."});
+  res.status(201).json({ok:true,id:item.id,status:item.status,message:"Solicitação recebida. Ela ainda depende da confirmação do estabelecimento."});
+});
+app.post("/api/intake/orders", limitIntake, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const b=req.body||{}, siteId=cleanText(b.siteId,120), name=cleanText(b.name,120), contact=cleanText(b.contact,120);
+  if(!siteId||!name||!contact||!Array.isArray(b.items)||!b.items.length||b.items.length>80) return res.status(400).json({ok:false,error:"Dados do pedido incompletos."});
+  const site=state.publishedSites.find(x=>String(x.id)===siteId);
+  if(!site) return res.status(404).json({ok:false,error:"Estabelecimento não encontrado."});
+  const items=b.items.slice(0,80).map(x=>({name:cleanText(x.name,160),quantity:Math.max(1,Math.min(99,Number(x.quantity)||1)),unitPrice:Math.max(0,Math.min(100000,Number(x.unitPrice)||0)),options:cleanText(x.options,500)}));
+  const total=items.reduce((sum,x)=>sum+x.quantity*x.unitPrice,0);
+  const item={id:crypto.randomUUID(),siteId,name,contact,items,total:Math.round(total*100)/100,notes:cleanText(b.notes,1000),status:"received",createdAt:new Date().toISOString()};
+  state.orders.push(item);
+  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido. Tente novamente."});
+  res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total});
+});
+app.get("/api/admin/inbox", adminAuth, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const siteId=cleanText(req.query.siteId,120);
+  if(!siteId) return res.status(400).json({ok:false,error:"Informe o siteId para limitar os dados a um estabelecimento."});
+  res.json({ok:true,reservations:state.reservations.filter(x=>x.siteId===siteId),orders:state.orders.filter(x=>x.siteId===siteId)});
+});
+app.patch("/api/admin/reservations/:id", adminAuth, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const item=state.reservations.find(x=>x.id===String(req.params.id));
+  if(!item) return res.status(404).json({ok:false,error:"Reserva não encontrada."});
+  const status=String(req.body?.status||"");
+  if(!["pending","confirmed","declined","cancelled"].includes(status)) return res.status(400).json({ok:false,error:"Estado inválido."});
+  item.status=status; item.updatedAt=new Date().toISOString(); item.adminNote=cleanText(req.body?.adminNote,500);
+  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar a alteração."});
+  res.json({ok:true,reservation:item});
+});
+app.patch("/api/admin/orders/:id", adminAuth, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const item=state.orders.find(x=>x.id===String(req.params.id));
+  if(!item) return res.status(404).json({ok:false,error:"Pedido não encontrado."});
+  const status=String(req.body?.status||"");
+  if(!["received","accepted","preparing","ready","completed","cancelled"].includes(status)) return res.status(400).json({ok:false,error:"Estado inválido."});
+  item.status=status; item.updatedAt=new Date().toISOString();
+  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar a alteração."});
+  res.json({ok:true,order:item});
 });
 
 app.post("/api/payment/create", async (req,res)=>{
@@ -315,4 +389,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V20.2.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V20.3.0 em http://localhost:${PORT}`));

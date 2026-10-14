@@ -2,7 +2,7 @@
 -- Execute no SQL Editor do projeto Supabase que será usado pelo backend.
 create table if not exists public.radar_state (
   id integer primary key check (id = 1),
-  state jsonb not null default '{"sales":[],"platforms":[],"events":[],"publishedSites":[]}'::jsonb,
+  state jsonb not null default '{"sales":[],"platforms":[],"events":[],"publishedSites":[],"reservations":[],"orders":[]}'::jsonb,
   updated_at timestamptz not null default now()
 );
 
