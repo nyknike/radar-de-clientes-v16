@@ -103,7 +103,7 @@ const cfg = {
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V20.4.1",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V20.4.2",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -169,7 +169,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V20.4.1",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V20.4.2",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -187,7 +187,7 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   res.json({ok:true,event,sale});
 });
 
-// V20.4.1: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
+// V20.4.2: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
 function limitIntake(req,res,next){
@@ -393,4 +393,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V20.4.1 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V20.4.2 em http://localhost:${PORT}`));
