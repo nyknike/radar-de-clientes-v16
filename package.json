@@ -1,6 +1,6 @@
 {
   "name": "radar-de-clientes-backend",
-  "version": "20.4.2",
+  "version": "20.4.3",
   "private": true,
   "type": "module",
   "scripts": {
