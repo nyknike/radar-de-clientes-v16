@@ -103,7 +103,7 @@ const cfg = {
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V20.6.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V20.7.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -169,7 +169,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V20.6.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V20.7.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -187,7 +187,7 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   res.json({ok:true,event,sale});
 });
 
-// V20.6.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
+// V20.7.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
 function limitIntake(req,res,next){
@@ -226,13 +226,14 @@ app.post("/api/intake/reservations", limitIntake, async (req,res)=>{
       if(!rpc.ok) throw new Error(result.message||`Supabase RPC HTTP ${rpc.status}`);
       if(!result.ok) return res.status(409).json({ok:false,error:result.error||"Horário indisponível."});
       const item=result.reservation;
+      state.reservations=state.reservations.filter(x=>String(x.id)!==String(item.id));
       state.reservations.push(item);
       await persistState();
-      return res.status(201).json({ok:true,id:item.id,status:"confirmed",reservation:item,message:"Reserva confirmada! Guarde o código da reserva."});
+      return res.status(201).json({ok:true,id:item.id,status:"confirmed",reservation:item,message:"Reserva confirmada! Guarde o código e o token de cancelamento."});
     }catch(err){console.error("Falha na reserva transacional:",err.message);return res.status(503).json({ok:false,error:"Não foi possível confirmar a reserva com segurança. Nenhuma confirmação foi emitida. Tente novamente mais tarde."});}
   }
-  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.6.0."});
-  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.6.0 aplicada. Reservas locais não são confirmadas."});
+  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.7.0."});
+  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.7.0 aplicada. Reservas locais não são confirmadas."});
 });
 app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await requireStorage(res)) return;
@@ -247,15 +248,49 @@ app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido. Tente novamente."});
   res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total});
 });
-// V20.6.0 FASE 2: configuração administrativa de horários e mesas.
+// V20.7.0 FASE 2: configuração administrativa de horários e mesas.
 async function supabaseAdminRequest(path, method="GET", body=null){
   const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!url||!key) throw new Error("Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Render.");
-  const response=await fetch(`${url.replace(/\/$/,"")}/rest/v1/${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:method==="POST"?"return=representation":"return=representation"},body:body===null?undefined:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+  const response=await fetch(`${url.replace(/\/$/,"")}/rest/v1/${path}`,{method,headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:method==="POST"?(path.includes("on_conflict")?"resolution=merge-duplicates,return=representation":"return=representation"):"return=representation"},body:body===null?undefined:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
   const data=await response.json().catch(()=>[]);
   if(!response.ok) throw new Error(data.message||data.error||`Supabase HTTP ${response.status}`);
   return data;
 }
+// V20.7.0 FASE 3: disponibilidade pública sem expor dados pessoais.
+app.get("/api/public/booking-availability", async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const siteId=cleanText(req.query.siteId,120), date=cleanText(req.query.date,10), people=Math.max(1,Math.min(30,Number(req.query.people)||1));
+  if(!siteId||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)) return res.status(400).json({ok:false,error:"Informe o estabelecimento e uma data válida."});
+  if(date < new Date().toISOString().slice(0,10)) return res.json({ok:true,slots:[]});
+  if(!state.publishedSites.some(x=>String(x.id)===siteId)) return res.status(404).json({ok:false,error:"Estabelecimento não encontrado."});
+  try{
+    const [slots,reservations,tables]=await Promise.all([
+      supabaseAdminRequest(`radar_booking_slots?site_id=eq.${encodeURIComponent(siteId)}&slot_date=eq.${encodeURIComponent(date)}&active=eq.true&select=id,slot_date,slot_time,mode,capacity&order=slot_time.asc`),
+      supabaseAdminRequest(`radar_reservations?site_id=eq.${encodeURIComponent(siteId)}&slot_date=eq.${encodeURIComponent(date)}&status=eq.confirmed&select=slot_time,people,mode,table_id`),
+      supabaseAdminRequest(`radar_booking_tables?site_id=eq.${encodeURIComponent(siteId)}&active=eq.true&select=id,label,seats&order=label.asc`)
+    ]);
+    const result=slots.map(slot=>{
+      const time=String(slot.slot_time).slice(0,5), booked=reservations.filter(r=>String(r.slot_time).slice(0,5)===time);
+      if(slot.mode==='capacity'){
+        const used=booked.reduce((n,r)=>n+Number(r.people||0),0), remaining=Math.max(0,Number(slot.capacity||0)-used);
+        return {date,time,mode:'capacity',capacity:Number(slot.capacity||0),remaining,available:remaining>=people,tables:[]};
+      }
+      const availableTables=tables.filter(t=>Number(t.seats)>=people&&!booked.some(r=>String(r.table_id)===String(t.id))).map(t=>({id:t.id,label:t.label,seats:Number(t.seats)}));
+      return {date,time,mode:'tables',capacity:0,remaining:availableTables.length,available:availableTables.length>0,tables:availableTables};
+    }).filter(x=>x.available);
+    res.setHeader('Cache-Control','no-store'); res.json({ok:true,slots:result});
+  }catch(e){console.error('Falha ao consultar disponibilidade:',e.message);res.status(503).json({ok:false,error:'Não foi possível consultar os horários agora. Tente novamente mais tarde.'});}
+});
+app.post("/api/public/reservations/cancel", limitIntake, async (req,res)=>{
+  const id=cleanText(req.body?.id,80), token=cleanText(req.body?.cancellationToken,80);
+  if(!id||!token) return res.status(400).json({ok:false,error:'Informe o código e o token de cancelamento.'});
+  try{
+    const rows=await supabaseAdminRequest(`radar_reservations?id=eq.${encodeURIComponent(id)}&cancellation_token=eq.${encodeURIComponent(token)}&status=eq.confirmed`,'PATCH',{status:'cancelled'});
+    if(!rows.length) return res.status(404).json({ok:false,error:'Reserva não encontrada, já cancelada ou código inválido.'});
+    res.json({ok:true,message:'Reserva cancelada. O horário foi liberado.'});
+  }catch(e){console.error('Falha ao cancelar reserva:',e.message);res.status(503).json({ok:false,error:'Não foi possível cancelar agora. Entre em contato com o estabelecimento.'});}
+});
 app.get("/api/admin/booking-config", adminAuth, async (req,res)=>{
   const siteId=cleanText(req.query.siteId,120);
   if(!siteId) return res.status(400).json({ok:false,error:"Informe o ID do estabelecimento."});
@@ -298,19 +333,23 @@ app.get("/api/admin/inbox", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
   const siteId=cleanText(req.query.siteId,120);
   if(!siteId) return res.status(400).json({ok:false,error:"Informe o siteId para limitar os dados a um estabelecimento."});
-  res.json({ok:true,reservations:state.reservations.filter(x=>x.siteId===siteId),orders:state.orders.filter(x=>x.siteId===siteId)});
+  try{
+    const rows=await supabaseAdminRequest(`radar_reservations?site_id=eq.${encodeURIComponent(siteId)}&select=id,site_id,customer_name,contact,email,slot_date,slot_time,people,mode,table_id,notes,dietary_restrictions,status,created_at&order=created_at.desc`);
+    const reservations=rows.map(x=>({id:x.id,siteId:x.site_id,name:x.customer_name,contact:x.contact,email:x.email,date:x.slot_date,time:String(x.slot_time).slice(0,5),people:x.people,mode:x.mode,tableId:x.table_id,notes:x.notes,dietaryRestrictions:x.dietary_restrictions,status:x.status,createdAt:x.created_at}));
+    res.json({ok:true,reservations,orders:state.orders.filter(x=>x.siteId===siteId)});
+  }catch(e){res.status(503).json({ok:false,error:'Não foi possível carregar as reservas do banco: '+e.message});}
 });
 app.patch("/api/admin/reservations/:id", adminAuth, async (req,res)=>{
-  if(!await requireStorage(res)) return;
-  const item=state.reservations.find(x=>x.id===String(req.params.id));
-  if(!item) return res.status(404).json({ok:false,error:"Reserva não encontrada."});
-  const siteId=cleanText(req.body?.siteId,120);
-  if(!siteId||item.siteId!==siteId) return res.status(403).json({ok:false,error:"Esta reserva não pertence ao estabelecimento selecionado."});
-  const status=String(req.body?.status||"");
-  if(!["pending","confirmed","declined","cancelled"].includes(status)) return res.status(400).json({ok:false,error:"Estado inválido."});
-  item.status=status; item.updatedAt=new Date().toISOString(); item.adminNote=cleanText(req.body?.adminNote,500);
-  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar a alteração."});
-  res.json({ok:true,reservation:item});
+  const siteId=cleanText(req.body?.siteId,120), status=String(req.body?.status||"");
+  if(!siteId) return res.status(400).json({ok:false,error:"Informe o estabelecimento."});
+  if(!["confirmed","cancelled","completed"].includes(status)) return res.status(400).json({ok:false,error:"Estado inválido. Use confirmada, cancelada ou concluída."});
+  try{
+    const rows=await supabaseAdminRequest(`radar_reservations?id=eq.${encodeURIComponent(req.params.id)}&site_id=eq.${encodeURIComponent(siteId)}&select=id,site_id,customer_name,contact,email,slot_date,slot_time,people,mode,table_id,notes,dietary_restrictions,status,created_at`,'PATCH',{status});
+    if(!rows.length) return res.status(404).json({ok:false,error:"Reserva não encontrada neste estabelecimento."});
+    const x=rows[0], reservation={id:x.id,siteId:x.site_id,name:x.customer_name,contact:x.contact,email:x.email,date:x.slot_date,time:String(x.slot_time).slice(0,5),people:x.people,mode:x.mode,tableId:x.table_id,notes:x.notes,dietaryRestrictions:x.dietary_restrictions,status:x.status,createdAt:x.created_at};
+    state.reservations=state.reservations.filter(v=>String(v.id)!==String(x.id));state.reservations.push(reservation);await persistState();
+    res.json({ok:true,reservation});
+  }catch(e){res.status(503).json({ok:false,error:'Não foi possível atualizar a reserva: '+e.message});}
 });
 app.patch("/api/admin/orders/:id", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
@@ -455,4 +494,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V20.6.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V20.7.0 em http://localhost:${PORT}`));
