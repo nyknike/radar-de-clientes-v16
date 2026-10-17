@@ -103,7 +103,7 @@ const cfg = {
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V20.7.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V20.8.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -169,7 +169,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V20.7.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V20.8.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -187,7 +187,7 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   res.json({ok:true,event,sale});
 });
 
-// V20.7.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
+// V20.8.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
 function limitIntake(req,res,next){
@@ -232,8 +232,8 @@ app.post("/api/intake/reservations", limitIntake, async (req,res)=>{
       return res.status(201).json({ok:true,id:item.id,status:"confirmed",reservation:item,message:"Reserva confirmada! Guarde o código e o token de cancelamento."});
     }catch(err){console.error("Falha na reserva transacional:",err.message);return res.status(503).json({ok:false,error:"Não foi possível confirmar a reserva com segurança. Nenhuma confirmação foi emitida. Tente novamente mais tarde."});}
   }
-  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.7.0."});
-  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.7.0 aplicada. Reservas locais não são confirmadas."});
+  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.8.0."});
+  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.8.0 aplicada. Reservas locais não são confirmadas."});
 });
 app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await requireStorage(res)) return;
@@ -248,7 +248,7 @@ app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido. Tente novamente."});
   res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total});
 });
-// V20.7.0 FASE 2: configuração administrativa de horários e mesas.
+// V20.8.0 FASE 2: configuração administrativa de horários e mesas.
 async function supabaseAdminRequest(path, method="GET", body=null){
   const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!url||!key) throw new Error("Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Render.");
@@ -257,7 +257,7 @@ async function supabaseAdminRequest(path, method="GET", body=null){
   if(!response.ok) throw new Error(data.message||data.error||`Supabase HTTP ${response.status}`);
   return data;
 }
-// V20.7.0 FASE 3: disponibilidade pública sem expor dados pessoais.
+// V20.8.0 FASE 3: disponibilidade pública sem expor dados pessoais.
 app.get("/api/public/booking-availability", async (req,res)=>{
   if(!await requireStorage(res)) return;
   const siteId=cleanText(req.query.siteId,120), date=cleanText(req.query.date,10), people=Math.max(1,Math.min(30,Number(req.query.people)||1));
@@ -309,6 +309,25 @@ app.post("/api/admin/booking-slots", adminAuth, async (req,res)=>{
   try{
     const rows=await supabaseAdminRequest("radar_booking_slots?on_conflict=site_id,slot_date,slot_time","POST",[{site_id:siteId,slot_date:date,slot_time:time,mode,capacity:mode==='capacity'?capacity:0,active:true}]);
     res.status(201).json({ok:true,slot:rows[0]});
+  }catch(e){res.status(503).json({ok:false,error:e.message});}
+});
+app.patch("/api/admin/booking-slots/edit", adminAuth, async (req,res)=>{
+  const b=req.body||{}, siteId=cleanText(b.siteId,120), date=cleanText(b.date,10), time=cleanText(b.time,5), mode=String(b.mode||"capacity"), capacity=Math.max(0,Math.min(500,Number(b.capacity)||0));
+  if(!siteId||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||!/^[0-2]\\d:[0-5]\\d$/.test(time)||!['capacity','tables'].includes(mode)) return res.status(400).json({ok:false,error:"Dados do horário inválidos."});
+  if(mode==='capacity'&&capacity<1) return res.status(400).json({ok:false,error:"A capacidade precisa ser maior que zero."});
+  try{
+    const rows=await supabaseAdminRequest(`radar_booking_slots?site_id=eq.${encodeURIComponent(siteId)}&slot_date=eq.${encodeURIComponent(date)}&slot_time=eq.${encodeURIComponent(time)}`,"PATCH",[{mode,capacity:mode==='capacity'?capacity:0}]);
+    if(!rows.length) return res.status(404).json({ok:false,error:"Horário não encontrado."});
+    res.json({ok:true,slot:rows[0]});
+  }catch(e){res.status(503).json({ok:false,error:e.message});}
+});
+app.patch("/api/admin/booking-slots/status", adminAuth, async (req,res)=>{
+  const b=req.body||{}, siteId=cleanText(b.siteId,120), date=cleanText(b.date,10), time=cleanText(b.time,5);
+  if(!siteId||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)||!/^[0-2]\\d:[0-5]\\d$/.test(time)) return res.status(400).json({ok:false,error:"Dados do horário inválidos."});
+  try{
+    const rows=await supabaseAdminRequest(`radar_booking_slots?site_id=eq.${encodeURIComponent(siteId)}&slot_date=eq.${encodeURIComponent(date)}&slot_time=eq.${encodeURIComponent(time)}`,"PATCH",[{active:Boolean(b.active)}]);
+    if(!rows.length) return res.status(404).json({ok:false,error:"Horário não encontrado."});
+    res.json({ok:true,slot:rows[0]});
   }catch(e){res.status(503).json({ok:false,error:e.message});}
 });
 app.post("/api/admin/booking-tables", adminAuth, async (req,res)=>{
@@ -494,4 +513,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V20.7.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V20.8.0 em http://localhost:${PORT}`));
