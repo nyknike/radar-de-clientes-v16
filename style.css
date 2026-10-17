@@ -43,7 +43,7 @@
 .public-preview-frame iframe{width:100%;height:70vh;min-height:420px;background:#fff;border:0;border-radius:10px;}
 #publicPreviewWrap[hidden],#publicPreviewStatus[hidden]{display:none!important;}
 
-/* V20.8.0 — editor visual mais compacto e organizado */
+/* V20.9.0 — editor visual mais compacto e organizado */
 #editorDialog{width:min(1280px,calc(100vw - 20px));max-width:none;max-height:96vh;padding:0;overflow:hidden;border-radius:18px}
 #editorDialog .dialog{width:100%;max-height:96vh;overflow:auto;padding:18px 22px;background:#0d1521;border:0;border-radius:0;display:grid;grid-template-columns:190px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;gap:0 18px}
 #editorDialog .dialog-head{grid-column:1/-1;position:sticky;top:0;z-index:5;background:#0d1521;padding:4px 0 14px}
@@ -70,3 +70,55 @@
  #editorDialog #edBody{grid-column:1;grid-row:3}
  #editorDialog .dialog>.actions{grid-column:1;grid-row:4;bottom:-12px}
 }
+
+/* V20.9.0 — Radar Studio: editor em aba separada, com prévia persistente */
+body.visual-editor-mode{background:#0b0d12;color:#e8edf5;overflow:hidden}
+body.visual-editor-mode>.header,body.visual-editor-mode>main,body.visual-editor-mode>#projectDialog,body.visual-editor-mode>#servicePreviewDialog,body.visual-editor-mode>#previewDialog{display:none!important}
+body.visual-editor-mode #editorDialog{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#0b0d12;color:#e8edf5;overflow:hidden}
+body.visual-editor-mode #editorDialog::backdrop{background:#0b0d12}
+#editorDialog .editor-workspace{width:100%;height:100%;max-height:100%;padding:0;display:flex;flex-direction:column;gap:0;background:#0b0d12;border:0;border-radius:0;overflow:hidden}
+#editorDialog .editor-workspace>.dialog-head{height:70px;min-height:70px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid #252a35;background:#11141b}
+#editorDialog .editor-workspace>.dialog-head h2{font-size:17px;margin:2px 0 0;font-weight:650;letter-spacing:0}
+#editorDialog .editor-workspace .eyebrow-ui{font-size:10px;letter-spacing:.14em;color:#a7b5cc}
+#editorDialog .editor-workarea{display:grid;grid-template-columns:178px minmax(300px,390px) minmax(0,1fr);gap:0;flex:1;min-height:0;overflow:hidden}
+#editorDialog .editor-toolrail{background:#11141b;border-right:1px solid #252a35;display:flex;flex-direction:column;min-height:0;padding:17px 10px}
+#editorDialog .editor-tool-label{font-size:10px;font-weight:800;letter-spacing:.14em;color:#7e8ba1;padding:5px 10px 12px}
+#editorDialog #tabs{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;border:0;background:transparent;position:static;overflow:auto}
+#editorDialog #tabs button{display:flex;align-items:center;gap:12px;text-align:left;width:100%;padding:12px 13px;border:1px solid transparent;border-radius:9px;background:transparent;color:#aeb8c9;font-size:13px;font-weight:600;white-space:normal}
+#editorDialog #tabs button span{width:23px;height:23px;display:grid;place-items:center;border-radius:7px;background:#202531;color:#d7dfed;font-size:13px;flex:0 0 auto}
+#editorDialog #tabs button.active{background:#242a37;border-color:#343d4f;color:#fff}
+#editorDialog #tabs button.active span{background:#d8e1f0;color:#151922}
+#editorDialog .editor-rail-note{margin-top:auto;padding:14px 10px 3px;color:#78859a;font-size:11px;line-height:1.5}
+#editorDialog #edBody{grid-column:auto;grid-row:auto;min-width:0;min-height:0;overflow:auto;padding:23px 22px 35px;background:#151922;border-right:1px solid #252a35;overscroll-behavior:contain}
+#editorDialog #edBody .creator-intro,#editorDialog #edBody .design-intro{padding:0 0 18px;background:none;border:0;border-radius:0;border-bottom:1px solid #303746;margin:0 0 20px}
+#editorDialog #edBody h3{font-size:19px;line-height:1.3;margin:5px 0 8px;color:#f2f5fa}
+#editorDialog #edBody h4{font-size:11px;letter-spacing:.12em;color:#a9b7ce;margin:25px 0 12px}
+#editorDialog #edBody p,#editorDialog #edBody .hint{color:#9aa6ba;font-size:12px;line-height:1.6}
+#editorDialog #edBody label{color:#c4cddd;font-size:12px;gap:7px}
+#editorDialog #edBody input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=file]),#editorDialog #edBody select,#editorDialog #edBody textarea{background:#0f131a;border:1px solid #343d4c;color:#edf2fa;border-radius:8px;padding:10px 11px;min-width:0}
+#editorDialog #edBody input[type=color]{width:100%;height:40px;background:#0f131a;border:1px solid #343d4c;border-radius:8px;padding:4px}
+#editorDialog #edBody .admin-grid,#editorDialog #edBody .row{gap:10px}
+#editorDialog #edBody .level-grid,#editorDialog #edBody .feature-grid{grid-template-columns:1fr;gap:8px}
+#editorDialog #edBody .level-card,#editorDialog #edBody .feature-card,#editorDialog #edBody .design-proposal,#editorDialog #edBody .visual-custom-panel{background:#10141c;border:1px solid #303746;border-radius:10px;padding:12px}
+#editorDialog #edBody .design-proposal-grid{grid-template-columns:1fr}
+#editorDialog #edBody .design-images{grid-template-columns:repeat(2,minmax(0,1fr))}
+#editorDialog #edBody .actions{gap:8px;flex-wrap:wrap}
+#editorDialog #edBody button{border-radius:8px}
+#editorDialog .editor-canvas{display:flex;flex-direction:column;min-width:0;min-height:0;background:#20242d;overflow:hidden}
+#editorDialog .canvas-toolbar{height:58px;min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;background:#191d26;border-bottom:1px solid #303644}
+#editorDialog .canvas-toolbar>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+#editorDialog .canvas-toolbar b{font-size:12px;color:#eef2f8}
+#editorDialog .canvas-toolbar span{font-size:10px;color:#8e9bb0}
+#editorDialog .canvas-device{display:flex;gap:4px;background:#10141b;border:1px solid #303746;border-radius:8px;padding:3px}
+#editorDialog .canvas-device button{padding:7px 10px;border:0;border-radius:5px;background:transparent;color:#9ba8bc;font-size:11px}
+#editorDialog .canvas-device button.active{background:#394253;color:#fff}
+#editorDialog .canvas-stage{display:flex;justify-content:center;align-items:flex-start;flex:1;min-height:0;overflow:auto;padding:22px;background-color:#252a34;background-image:radial-gradient(#454c5b 1px,transparent 1px);background-size:17px 17px}
+#editorDialog #editorLivePreview{display:block;flex:0 0 auto;width:100%;height:100%;min-height:620px;background:white;border:1px solid #434b5a;border-radius:7px;box-shadow:0 15px 45px #0005;transition:width .18s ease}
+#editorDialog .editor-actions{height:68px;min-height:68px;display:flex;justify-content:flex-end;align-items:center;padding:0 22px;margin:0;border-top:1px solid #252a35;background:#11141b}
+#editorDialog .editor-actions button{min-height:39px;border-radius:8px;padding:0 16px;font-weight:650}
+#editorDialog .editor-actions #edPublish{background:#dce7f7;color:#151a23;border:0}
+#editorDialog .editor-actions #edSave{background:#202633;color:#e1e8f3;border:1px solid #3a4354}
+#editorDialog .close{width:36px;height:36px;border-radius:9px;background:#202530;color:#dce4f1;border:1px solid #353d4b;font-size:22px}
+body.visual-editor-mode .status{display:none}
+@media(max-width:1000px){#editorDialog .editor-workarea{grid-template-columns:78px minmax(260px,340px) minmax(0,1fr)}#editorDialog .editor-tool-label{font-size:0}#editorDialog #tabs button{justify-content:center;padding:11px 5px;font-size:0}#editorDialog #tabs button span{font-size:14px;width:31px;height:31px}#editorDialog .editor-rail-note{display:none}}
+@media(max-width:720px){#editorDialog .editor-workspace>.dialog-head{height:58px;min-height:58px;padding:0 12px}#editorDialog .editor-workarea{grid-template-columns:56px minmax(0,1fr);grid-template-rows:minmax(300px,48%) minmax(260px,52%)}#editorDialog .editor-toolrail{grid-column:1;grid-row:1 / 3;padding:8px 4px}#editorDialog #edBody{grid-column:2;grid-row:2;border-right:0;border-top:1px solid #303746;padding:16px 14px 28px}#editorDialog .editor-canvas{grid-column:2;grid-row:1;min-height:0}#editorDialog .canvas-toolbar{height:45px;min-height:45px;padding:0 9px}#editorDialog .canvas-stage{padding:9px}#editorDialog #editorLivePreview{min-height:100%;height:100%}#editorDialog .editor-actions{height:58px;min-height:58px;padding:0 10px}#editorDialog .editor-actions button{padding:0 11px;font-size:12px}#editorDialog #tabs button{padding:8px 3px}#editorDialog #tabs button span{width:30px;height:30px}}
