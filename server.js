@@ -97,13 +97,69 @@ async function requireStorage(res){
 const cfg = {
   payment: process.env.MP_ACCESS_TOKEN ? "mercadopago" : "manual",
   hosting: process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID ? "cloudflare" : "manual",
-  domain: process.env.DOMAIN_PROVIDER ? process.env.DOMAIN_PROVIDER : "manual"
+  domain: process.env.DOMAIN_PROVIDER ? process.env.DOMAIN_PROVIDER : "manual",
+  ai: process.env.OPENROUTER_API_KEY ? "openrouter-configured" : "not-configured"
 };
+
+// V20.10.0: endpoint seguro para validar a conexão com OpenRouter antes de ligar
+// a IA ao fluxo visual. A chave permanece exclusivamente no servidor/Render.
+const openRouterRequests = new Map();
+app.post("/api/ai/test", async (req, res) => {
+  const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+  if (!prompt || prompt.length > 3000) {
+    return res.status(400).json({ ok: false, error: "Envie um prompt de até 3000 caracteres." });
+  }
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ ok: false, error: "OPENROUTER_API_KEY não configurada nas variáveis de ambiente do Render." });
+  }
+  const ip = String(req.ip || req.socket?.remoteAddress || "unknown");
+  const now = Date.now();
+  const recent = (openRouterRequests.get(ip) || []).filter(t => now - t < 60000);
+  if (recent.length >= 5) {
+    return res.status(429).json({ ok: false, error: "Limite de 5 testes por minuto atingido. Aguarde e tente novamente." });
+  }
+  recent.push(now);
+  openRouterRequests.set(ip, recent);
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-OpenRouter-Title": "Radar de Clientes"
+      },
+      body: JSON.stringify({
+        model: "openrouter/free",
+        messages: [
+          { role: "system", content: "Você é um assistente de criação de sites e design para pequenos negócios. Responda em português brasileiro, de forma objetiva." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 1000
+      }),
+      signal: AbortSignal.timeout(45000)
+    });
+    if (!response.ok) {
+      const status = response.status;
+      console.error("OpenRouter respondeu com HTTP", status);
+      return res.status(502).json({ ok: false, error: status === 429 ? "Limite do provedor de IA atingido; tente mais tarde." : "O provedor de IA não concluiu a solicitação. Confira a chave, os limites e a disponibilidade do modelo." });
+    }
+    const data = await response.json();
+    const result = data?.choices?.[0]?.message?.content;
+    if (typeof result !== "string" || !result.trim()) {
+      return res.status(502).json({ ok: false, error: "O modelo não retornou texto válido." });
+    }
+    return res.json({ ok: true, model: data.model || "openrouter/free", text: result.trim() });
+  } catch (error) {
+    console.error("Falha na conexão OpenRouter:", error?.name || "Error");
+    return res.status(502).json({ ok: false, error: "Não foi possível conectar ao provedor de IA. Tente novamente." });
+  }
+});
 
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V20.9.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V20.10.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -169,7 +225,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V20.9.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V20.10.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -187,7 +243,7 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   res.json({ok:true,event,sale});
 });
 
-// V20.9.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
+// V20.10.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
 function limitIntake(req,res,next){
@@ -232,8 +288,8 @@ app.post("/api/intake/reservations", limitIntake, async (req,res)=>{
       return res.status(201).json({ok:true,id:item.id,status:"confirmed",reservation:item,message:"Reserva confirmada! Guarde o código e o token de cancelamento."});
     }catch(err){console.error("Falha na reserva transacional:",err.message);return res.status(503).json({ok:false,error:"Não foi possível confirmar a reserva com segurança. Nenhuma confirmação foi emitida. Tente novamente mais tarde."});}
   }
-  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.9.0."});
-  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.9.0 aplicada. Reservas locais não são confirmadas."});
+  if(isProduction) return res.status(503).json({ok:false,error:"A confirmação segura exige SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e a migração V20.10.0."});
+  return res.status(503).json({ok:false,error:"A confirmação instantânea exige banco Supabase com a migração V20.10.0 aplicada. Reservas locais não são confirmadas."});
 });
 app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await requireStorage(res)) return;
@@ -248,7 +304,7 @@ app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido. Tente novamente."});
   res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total});
 });
-// V20.9.0 FASE 2: configuração administrativa de horários e mesas.
+// V20.10.0 FASE 2: configuração administrativa de horários e mesas.
 async function supabaseAdminRequest(path, method="GET", body=null){
   const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
   if(!url||!key) throw new Error("Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no Render.");
@@ -257,7 +313,7 @@ async function supabaseAdminRequest(path, method="GET", body=null){
   if(!response.ok) throw new Error(data.message||data.error||`Supabase HTTP ${response.status}`);
   return data;
 }
-// V20.9.0 FASE 3: disponibilidade pública sem expor dados pessoais.
+// V20.10.0 FASE 3: disponibilidade pública sem expor dados pessoais.
 app.get("/api/public/booking-availability", async (req,res)=>{
   if(!await requireStorage(res)) return;
   const siteId=cleanText(req.query.siteId,120), date=cleanText(req.query.date,10), people=Math.max(1,Math.min(30,Number(req.query.people)||1));
@@ -513,4 +569,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V20.9.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V20.10.0 em http://localhost:${PORT}`));
