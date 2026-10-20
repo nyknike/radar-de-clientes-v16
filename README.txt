@@ -1,131 +1,85 @@
-RADAR DE CLIENTES — V20.10.0
+RADAR DE CLIENTES — V21.0.0
+Pacote: integracoes-organizadas
+Repositório/serviço de destino: radar-de-clientes-v16
+URL de produção conhecida: https://radar-de-clientes-v16.onrender.com
 
-BASE PRESERVADA
-Esta versão parte da V18.0.0 e preserva o painel de prospecção, designer, projetos salvos, prévia pública, revisão automática, estado no Supabase e fluxo comercial.
+OBJETIVO DESTA VERSÃO
+Manter a base funcional V20.10.0 e organizar as integrações por sistema, centralizar a verificação de configuração, fornecer testes de conexão protegidos e documentar as variáveis necessárias. Esta versão não contém chaves reais.
 
-NOVA INTEGRAÇÃO: CLOUDFLARE PAGES
-- A rota /api/publish/cloudflare deixou de ser um placeholder 501 e tenta publicar sites estáticos no Cloudflare Pages via Wrangler.
-- O HTML autônomo do site é salvo junto ao registro público e publicado em /site/ID/ no projeto Pages compartilhado.
-- A cada publicação, o pacote inclui todos os sites que já tenham HTML salvo no banco; assim, os sites publicados anteriormente não são removidos quando um novo site é publicado.
-- O token Cloudflare fica exclusivamente nas variáveis de ambiente do servidor, nunca no navegador ou no repositório.
-- Projeto Pages padrão: radar-clientes-sites. Pode ser alterado pela variável CLOUDFLARE_PAGES_PROJECT (somente letras minúsculas, números e hífens após normalização).
+SISTEMAS E VARIÁVEIS
+1. Supabase — armazenamento persistente
+   SUPABASE_URL
+   SUPABASE_SERVICE_ROLE_KEY
+   Necessário em produção. Execute supabase-setup.sql no SQL Editor do projeto Supabase antes de usar os recursos que dependem das tabelas.
 
-VARIÁVEIS NO RENDER
-Obrigatórias para publicação Cloudflare:
-- CLOUDFLARE_API_TOKEN — token com Account / Cloudflare Pages / Edit.
-- CLOUDFLARE_ACCOUNT_ID — Account ID, não Zone ID.
-Opcionais:
-- CLOUDFLARE_PAGES_PROJECT — nome do projeto Pages (padrão radar-clientes-sites).
-Manter também SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY, além de NODE_ENV=production.
+2. OpenRouter — IA
+   OPENROUTER_API_KEY
+   OPENROUTER_MODEL (opcional; padrão openrouter/free; pode ser alterado no Render conforme os modelos disponíveis na sua conta)
+   Há endpoint de teste. A chave estar configurada não significa que todas as ações do editor já utilizam IA automaticamente.
 
-COMO SUBIR AO GITHUB/RENDER
-1. Faça backup do repositório atual antes de substituir arquivos.
-2. Extraia o ZIP e envie o CONTEÚDO da pasta radar-de-clientes-v20.5.0 para a raiz do repositório GitHub conectado ao Render. Não envie a pasta pai como uma segunda pasta dentro do repositório.
-3. Inclua server.js, app.js, index.html, style.css, package.json, render.yaml, logo.png, supabase-setup.sql e README.txt.
-4. Faça commit e push para a branch que o Render usa (geralmente main). O Render executará npm install e npm start.
-5. Não remova nem substitua variáveis secretas já existentes no Render. Confirme CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID na seção Environment.
-6. Após o deploy, abra /api/health e confira version=V20.10.0, persistentStorage=true e integrations.hosting=cloudflare.
-7. Publique um site de teste. O primeiro deploy cria o projeto Pages se ainda não existir. A URL deverá ser https://radar-clientes-sites.pages.dev/site/ID/ (ou o nome configurado).
+3. Cloudflare Pages — publicação de sites
+   CLOUDFLARE_API_TOKEN
+   CLOUDFLARE_ACCOUNT_ID
+   CLOUDFLARE_PAGES_PROJECT (opcional; padrão radar-clientes-sites)
+   Token e Account ID são dados diferentes. O teste verifica autenticação da conta; a publicação real exige um teste de publicação separado.
 
-IMPORTANTE SOBRE GITHUB
-O conector GitHub desta sessão não mostrou nenhum repositório acessível para fazer push direto. Por isso, este ZIP está preparado para você enviar ao repositório existente; não afirmo que o código já foi enviado ao GitHub ou publicado no Render.
+4. Mercado Pago — checkout
+   MP_ACCESS_TOKEN
+   PUBLIC_BASE_URL (opcional, recomendado: https://radar-de-clientes-v16.onrender.com)
+   O código cria preferências de checkout. O webhook atual apenas recebe/registra eventos; ainda falta validar assinatura e atualizar pagamentos de forma confiável. Não usar como fluxo de pagamento automático em produção.
 
-LIMITES E SEGURANÇA
-- O deploy foi implementado, mas precisa ser testado com as credenciais reais da conta Cloudflare; a criação/publicação não foi executada a partir deste ambiente.
-- Para evitar um bundle excessivo, o servidor limita o HTML de cada site a 4 MB e o conjunto a 20 MB por publicação.
-- O servidor publica os sites já registrados com HTML. Sites antigos da V18 precisam ser salvos/publicados novamente para gerar esse HTML.
-- A rota de publicação está exposta no backend existente sem login de administrador; antes de vender/publicar comercialmente, adicione autenticação de administrador ou um segredo de publicação. Não compartilhe a URL do painel publicamente.
-- Cloudflare Pages hospeda o HTML estático; o painel e os dados do Radar continuam no Render/Supabase.
-- Pagamentos automáticos e conexão automática de domínio personalizado ainda não estão implementados nesta versão.
+5. Administração
+   ADMIN_PANEL_SECRET
+   Segredo exclusivo usado para proteger o endpoint de testes e endpoints administrativos. Gere um valor forte e não reutilize tokens de outras APIs.
 
+CONFIGURAÇÃO NO RENDER
+1. Abra https://dashboard.render.com/ e selecione o serviço existente radar-de-clientes-v16.
+2. Abra Environment.
+3. Compare as variáveis cadastradas com o arquivo .env.example e adicione somente as que estiverem faltando. Não apague nem substitua valores atuais que já funcionam.
+4. Configure as chaves secretas diretamente no Render; nunca no frontend, no ZIP, no GitHub ou no chat.
+5. Salve as alterações e aguarde o deploy.
+6. O render.yaml serve como referência/Blueprint; não crie um serviço duplicado nem troque o serviço existente sem verificar o destino.
 
-V20.10.0 — AJUSTES DE EDITOR E VALIDAÇÃO
-- Versão sincronizada no selo, título, API /api/health, status público e log do servidor.
-- Formato de imagem aplicado também às imagens dos cards de produtos/cardápio.
-- Tipografia herdada de forma consistente nos componentes do site.
-- Envio de imagem atualiza o editor e mostra orientação para salvar.
+ARQUIVO .env.example
+É apenas um modelo organizado por sistema. Não cole nele valores reais. O arquivo .gitignore exclui arquivos .env e mantém apenas .env.example versionável.
 
-TESTES ANTES DE CONSIDERAR PRONTO
-1. Confirmar /api/health retorna version=V20.10.0.
-2. Criar projeto de teste, mudar fonte, tamanho de título/texto e formato das imagens.
-3. Enviar imagem própria, salvar, reabrir e confirmar persistência.
-4. Criar cardápio completo e testar adicionar/remover itens, quantidades, total e link WhatsApp.
-5. Testar no celular e computador.
-6. Publicar na Cloudflare com credenciais reais e abrir a URL pública.
+ENDPOINTS DE VERIFICAÇÃO
+- GET /api/health — versão e estado geral de armazenamento/integrations.
+- GET /api/integrations/status — informa apenas se cada variável está configurada; nunca devolve os segredos.
+- POST /api/integrations/test — testa conexões reais, exige Authorization: Bearer <ADMIN_PANEL_SECRET>.
+  JSON de exemplo: {"providers":["supabase","cloudflare"]}
+  Valores permitidos: supabase, openrouter, cloudflare, mercadopago.
+  Envie apenas os provedores que deseja testar. O teste OpenRouter faz uma chamada curta e pode consumir limite/crédito conforme sua conta.
 
-Atenção: estes ajustes não comprovam por si só a publicação real na Cloudflare. O fluxo de pedidos usa WhatsApp e não processa pagamentos. A rota de publicação ainda precisa de autenticação administrativa antes de uso comercial.
+TESTES LOCAIS EXECUTADOS NESTE PACOTE
+- node --check server.js
+- node --check app.js
+- node --check admin.js
+- node --check config/integrations.js
+- node --test (2 testes unitários passaram)
+- integridade do ZIP conferida.
+Esses testes verificam sintaxe, estado seguro das configurações e validação de provedor desconhecido. Não substituem testes com credenciais reais no Render.
 
+LIMITAÇÕES IMPORTANTES AINDA ABERTAS
+- Não foi possível verificar credenciais privadas nem executar publicação real a partir deste ambiente. Os testes reais precisam ser executados após deploy.
+- A rota /api/publish/cloudflare existente precisa de revisão de autorização antes de uso comercial. Não exponha o painel publicamente.
+- Mercado Pago: webhook sem validação completa de assinatura nem atualização confiável de estado do pagamento.
+- OpenRouter: teste de conexão e edição assistida do site no Radar Studio via aba “IA Studio” (V21.0.0). A edição gera sugestões e não publica automaticamente; valide resultados no editor.
+- Conexão automática de domínio personalizado não está implementada.
+- Os formulários públicos de reserva/pedido e o armazenamento dependem da configuração/migração Supabase correspondente; valide com dados fictícios antes de usar dados reais.
 
-V20.10.0 — base inicial de reservas/pedidos e caixa de entrada administrativa
-- Estado persistente agora inclui reservations e orders (Supabase JSON state).
-- Rotas públicas de entrada: POST /api/intake/reservations e POST /api/intake/orders.
-- Rotas privadas: GET /api/admin/inbox?siteId=ID, PATCH /api/admin/reservations/ID, PATCH /api/admin/orders/ID.
-- Para habilitar endpoints privados, configure ADMIN_PANEL_SECRET nas variáveis de ambiente do Render. Envie-o apenas no cabeçalho Authorization: Bearer; nunca coloque o segredo no HTML público ou no link compartilhado.
-- As rotas de intake só aceitam siteId já registrado no armazenamento de sites publicados. As reservas ficam pendentes; não há confirmação automática nem bloqueio real de agenda nesta versão.
-- IMPORTANTE: esta é uma base de backend, ainda não um painel visual completo. Os formulários públicos atuais ainda precisam ser ligados a estas rotas; a caixa de entrada visual, autenticação individual por estabelecimento e notificações automáticas são etapas posteriores.
-- Teste de sintaxe realizado; publicação real no Render/Cloudflare não foi verificada nesta etapa.
-
-
-V20.10.0 — PAINEL VISUAL DE RESERVAS E PEDIDOS
-
-Novidades desta etapa:
-- Nova página /admin.html para o administrador consultar reservas e pedidos por ID do estabelecimento.
-- Ações para atualizar o estado de reservas (pendente, confirmada, recusada, cancelada) e pedidos (recebido, aceito, em preparação, pronto, concluído, cancelado).
-- Exibição de contato, data, horário, observações, itens e total do pedido.
-- Atalho para abrir WhatsApp com mensagem inicial preparada.
-- Proteção adicional no servidor: uma alteração só é aceita quando o siteId enviado corresponde ao registro alterado.
-
-CONFIGURAÇÃO E LIMITAÇÕES IMPORTANTES
-1. Configure ADMIN_PANEL_SECRET nas variáveis de ambiente do Render. Nunca coloque esse segredo no código ou em um site público.
-2. Acesse /admin.html, informe o ID exato do site e o segredo. O ID deve corresponder a um site existente em publishedSites no armazenamento do Radar.
-3. Esta tela é uma etapa inicial de administração e usa um segredo compartilhado, não contas individuais. Antes de uso comercial, implementar autenticação por cliente, recuperação de acesso, limites por função e proteção adicional contra tentativas de acesso.
-4. A caixa de entrada mostra registros que já tenham sido recebidos pelas rotas /api/intake/reservations e /api/intake/orders. Os formulários dos sites públicos ainda precisam ser conectados e testados para garantir que gerem esses registros.
-5. O atalho de WhatsApp apenas abre uma conversa; não envia mensagens automaticamente. Confirme manualmente a disponibilidade antes de confirmar reservas.
-6. Não foi confirmado deploy no Render nem teste ponta a ponta em produção. Depois de publicar, confira /api/health e teste com dados fictícios antes de usar dados de clientes.
+ATUALIZAÇÃO DO GITHUB
+1. Faça backup do estado atual do repositório.
+2. Extraia o ZIP e envie o conteúdo dos arquivos para a raiz de https://github.com/nyknike/radar-de-clientes-v16 (não envie uma pasta pai dentro do repositório).
+3. Faça commit na branch que o Render já utiliza.
+4. Aguarde o deploy e confirme que /api/health mostra V21.0.0.
+5. Não afirme que produção está validada até testar Supabase, OpenRouter, Cloudflare e Mercado Pago conforme o uso pretendido.
 
 
-V20.10.0 — correção visual do agendamento/reservas
-- Removido o formulário de agendamento inline que poluía a página.
-- Adicionado botão dedicado no cabeçalho do site público, abrindo uma tela própria de formulário.
-- Formulário responsivo com nome, contato, e-mail opcional, data, horário, serviço/profissional ou quantidade de pessoas, aniversário opcional, observações e consentimento.
-- A solicitação é enviada para o endpoint do Radar no Render e fica pendente; a interface deixa explícito que ainda não está confirmada.
-- A função aparece apenas nos projetos com módulo de agendamento/reservas ativado.
-- Importante: esta versão ainda precisa ser publicada e testada com um site público real. Confirme que o domínio de produção do Radar permanece radar-de-clientes-v16.onrender.com antes de usar; o endereço do endpoint está configurado no código gerado.
-
-
-V20.10.0 — CORREÇÃO DO AGENDAMENTO PÚBLICO
-- Botão de agendamento/reserva exibido em sites públicos quando o módulo está ativado, inclusive em sites do nível essencial.
-- O botão abre uma página dedicada via ?agendamento=1, com formulário em tela própria e link para voltar ao site.
-- A rota pública do Radar renderiza essa página separadamente e envia solicitações para /api/intake/reservations.
-- Testes realizados: sintaxe JavaScript. Não foi possível confirmar o deploy em produção nem o fluxo real com Supabase/Cloudflare.
-
-
-V20.10.0 — CORREÇÃO REAL DA EXIBIÇÃO DO BOTÃO DE AGENDAMENTO
-- Exibe botão de reserva em restaurantes, pizzarias e lanchonetes; agendamento em barbearias, salões, pet shops, academias, clínicas, hotéis e oficinas, mesmo se o módulo não estiver explicitamente gravado no projeto antigo.
-- O botão aparece na navegação pública e, quando não existe navegação, em uma faixa dedicada; adiciona uma chamada visual após o hero quando aplicável.
-- O botão abre a página separada /site/ID?agendamento=1.
-- Verificações feitas localmente: sintaxe JavaScript e servidor. Ainda é necessário publicar no Render e testar a URL real do cliente.
-
-
-V20.10.0 — FASE 2: PAINEL DE CONFIGURAÇÃO DE RESERVAS
-- Adiciona no painel administrativo uma área para configurar horários por data/hora, modo capacidade ou mesas e capacidade por slot.
-- Adiciona cadastro/ativação/desativação de mesas e leitura de configurações do Supabase.
-- Endpoints protegidos por ADMIN_PANEL_SECRET.
-- Requer a migração SQL da Fase 1 já aplicada no Supabase.
-- Na versão V20.10.0, a Fase 3 conecta o formulário público à disponibilidade configurada; ainda exige deploy e teste real.
-- Testes locais: node --check server.js e node --check admin.js. Não foi feito deploy nem teste no Supabase real.
-
-
-FASE 3 (V20.10.0): o formulário público de reservas consulta os horários configurados, filtra por disponibilidade/capacidade, permite selecionar mesas, solicita confirmação transacional imediata pelo Supabase e exibe código/token privado de cancelamento. O cliente pode cancelar com código + token. O painel lê reservas da tabela relacional e permite cancelar/concluir. Requer as tabelas e a função radar_create_reservation da migração SQL da Fase 1 e as variáveis SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e ADMIN_PANEL_SECRET no Render. Testes locais de sintaxe não substituem um teste real após deploy. Sites servidos em /site/:id usam API na mesma origem; publicação externa em domínio/Cloudflare precisa de configuração de API/CORS própria antes de receber reservas.
-
-
-INTEGRAÇÃO INICIAL DE IA — OPENROUTER (V20.10.0)
-- Adiciona POST /api/ai/test para testar o provedor de IA sem expor a chave no navegador.
-- O endpoint usa o modelo openrouter/free; disponibilidade e limites dependem do provedor.
-- No Render, adicione OPENROUTER_API_KEY nas Environment Variables. Não coloque a chave em app.js, index.html, GitHub público ou mensagens.
-- A rota é uma etapa de validação do backend; o botão/fluxo do Radar Studio ainda precisa ser conectado ao endpoint em uma etapa seguinte.
-- O estado das integrações aparece em GET /api/health (integrations.ai).
-- A integração não substitui nem remove Supabase, Mercado Pago, Cloudflare ou outras integrações existentes.
-
-TESTE MANUAL DA API DE IA
-Após configurar OPENROUTER_API_KEY e aguardar o deploy, envie um POST para /api/ai/test com Content-Type: application/json e corpo {"prompt":"Sugira três ideias de layout para uma pizzaria local."}. A rota retorna o texto do modelo ou uma mensagem de erro sem revelar a chave.
+V21.0.0 — ALTERAÇÕES
+- Adicionada aba IA Studio ao editor de sites.
+- Novo endpoint POST /api/ai/site-edit; chave mantida exclusivamente no servidor.
+- Resposta da IA validada por lista permitida de campos; sem HTML/JavaScript arbitrário.
+- Limite de solicitações por IP, timeout e mensagens de erro sem expor a chave.
+- A IA propõe alterações; o usuário revisa e salva/publica manualmente.
+- Preservadas as integrações existentes e as demais funções do projeto.

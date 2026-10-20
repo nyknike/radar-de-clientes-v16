@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: radar-de-clientes-web
+    name: radar-de-clientes-v16
     runtime: node
     plan: free
     buildCommand: npm install
@@ -12,4 +12,20 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_PAGES_PROJECT
+        value: radar-clientes-sites
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: PUBLIC_BASE_URL
+        value: https://radar-de-clientes-v16.onrender.com
+      - key: ADMIN_PANEL_SECRET
         sync: false
