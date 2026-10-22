@@ -1,10 +1,10 @@
-RADAR DE CLIENTES — V21.0.2
+RADAR DE CLIENTES — V21.3.0
 Pacote: correção de compatibilidade do módulo de integrações
 Repositório/serviço de destino: radar-de-clientes-v16
 URL de produção conhecida: https://radar-de-clientes-v16.onrender.com
 
 OBJETIVO DESTA VERSÃO
-Corrigir a inicialização quando o arquivo integrations.js tiver sido enviado por engano à raiz do repositório, mantendo compatibilidade com config/integrations.js. Mantém a base V21.0.2 com IA Studio. Esta versão não contém chaves reais.
+Corrigir a inicialização quando o arquivo integrations.js tiver sido enviado por engano à raiz do repositório, mantendo compatibilidade com config/integrations.js. Mantém a base V21.3.0 com IA Studio. Esta versão não contém chaves reais.
 
 SISTEMAS E VARIÁVEIS
 1. Supabase — armazenamento persistente
@@ -64,7 +64,7 @@ LIMITAÇÕES IMPORTANTES AINDA ABERTAS
 - Não foi possível verificar credenciais privadas nem executar publicação real a partir deste ambiente. Os testes reais precisam ser executados após deploy.
 - A rota /api/publish/cloudflare existente precisa de revisão de autorização antes de uso comercial. Não exponha o painel publicamente.
 - Mercado Pago: webhook sem validação completa de assinatura nem atualização confiável de estado do pagamento.
-- OpenRouter: teste de conexão e edição assistida do site no Radar Studio via aba “IA Studio” (V21.0.2). A edição gera sugestões e não publica automaticamente; valide resultados no editor.
+- OpenRouter: teste de conexão e edição assistida do site no Radar Studio via aba “IA Studio” (V21.3.0). A edição gera sugestões e não publica automaticamente; valide resultados no editor.
 - Conexão automática de domínio personalizado não está implementada.
 - Os formulários públicos de reserva/pedido e o armazenamento dependem da configuração/migração Supabase correspondente; valide com dados fictícios antes de usar dados reais.
 
@@ -72,11 +72,11 @@ ATUALIZAÇÃO DO GITHUB
 1. Faça backup do estado atual do repositório.
 2. Extraia o ZIP e envie o conteúdo dos arquivos para a raiz de https://github.com/nyknike/radar-de-clientes-v16 (não envie uma pasta pai dentro do repositório).
 3. Faça commit na branch que o Render já utiliza.
-4. Aguarde o deploy e confirme que /api/health mostra V21.0.2.
+4. Aguarde o deploy e confirme que /api/health mostra V21.3.0.
 5. Não afirme que produção está validada até testar Supabase, OpenRouter, Cloudflare e Mercado Pago conforme o uso pretendido.
 
 
-V21.0.2 — ALTERAÇÕES
+V21.3.0 — ALTERAÇÕES
 - Adicionada aba IA Studio ao editor de sites.
 - Novo endpoint POST /api/ai/site-edit; chave mantida exclusivamente no servidor.
 - Resposta da IA validada por lista permitida de campos; sem HTML/JavaScript arbitrário.
@@ -85,13 +85,20 @@ V21.0.2 — ALTERAÇÕES
 - Preservadas as integrações existentes e as demais funções do projeto.
 
 
-V21.0.2 — CORREÇÃO
+V21.3.0 — CORREÇÃO
 - server.js tenta carregar config/integrations.js e, se o arquivo não existir, usa integrations.js na raiz.
 - Incluído integrations.js na raiz como compatibilidade para uploads feitos sem a pasta config/.
 - Mantida também a cópia config/integrations.js.
 - Não foram incluídas chaves secretas.
 
 
-V21.0.2 — CORREÇÃO DE IDENTIFICAÇÃO
+V21.3.0 — CORREÇÃO DE IDENTIFICAÇÃO
 - Corrigido o número da versão mostrado na interface principal, no cache dos arquivos estáticos e nos endpoints de saúde/status.
 - Mantidas as funcionalidades da IA Studio e a correção de compatibilidade do módulo config/integrations.js.
+
+
+V21.3.0 — CORREÇÕES DE FLUXO
+- IA Studio tenta modelo configurado e fallback openrouter/free, interpreta JSON cercado por markdown e mostra erros mais específicos.
+- Profissional recebe carrinho para negócios de alimentação, com quantidade, itens e envio pelo WhatsApp.
+- Regerar versão troca o conjunto de imagens por imagens do banco relevante ao tipo de negócio. Não gera imagens novas por IA; usa o banco de imagens disponível no projeto.
+- Reservas ativadas como módulo padrão para lanchonetes, sem confirmar disponibilidade automaticamente.
