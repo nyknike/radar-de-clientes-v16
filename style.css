@@ -123,7 +123,7 @@ body.visual-editor-mode .status{display:none}
 @media(max-width:1000px){#editorDialog .editor-workarea{grid-template-columns:78px minmax(260px,340px) minmax(0,1fr)}#editorDialog .editor-tool-label{font-size:0}#editorDialog #tabs button{justify-content:center;padding:11px 5px;font-size:0}#editorDialog #tabs button span{font-size:14px;width:31px;height:31px}#editorDialog .editor-rail-note{display:none}}
 @media(max-width:720px){#editorDialog .editor-workspace>.dialog-head{height:58px;min-height:58px;padding:0 12px}#editorDialog .editor-workarea{grid-template-columns:56px minmax(0,1fr);grid-template-rows:minmax(300px,48%) minmax(260px,52%)}#editorDialog .editor-toolrail{grid-column:1;grid-row:1 / 3;padding:8px 4px}#editorDialog #edBody{grid-column:2;grid-row:2;border-right:0;border-top:1px solid #303746;padding:16px 14px 28px}#editorDialog .editor-canvas{grid-column:2;grid-row:1;min-height:0}#editorDialog .canvas-toolbar{height:45px;min-height:45px;padding:0 9px}#editorDialog .canvas-stage{padding:9px}#editorDialog #editorLivePreview{min-height:100%;height:100%}#editorDialog .editor-actions{height:58px;min-height:58px;padding:0 10px}#editorDialog .editor-actions button{padding:0 11px;font-size:12px}#editorDialog #tabs button{padding:8px 3px}#editorDialog #tabs button span{width:30px;height:30px}}
 
-/* V21.5.1 · editor manual inspirado em canvas */
+/* V21.5.2 · editor manual inspirado em canvas */
 #editorDialog #edBody .manual-editor-intro{padding:0 0 18px;border-bottom:1px solid #303746;margin-bottom:18px}
 #editorDialog #edBody .manual-editor-card{background:#10141c;border:1px solid #303746;border-radius:12px;padding:14px;margin:0 0 14px}
 #editorDialog #edBody .manual-editor-card h4{margin:8px 0 12px;color:#e5ebf5}
@@ -142,10 +142,18 @@ body.visual-editor-mode .status{display:none}
 #editorDialog #edBody .manual-section-row small{font-size:10px;color:#8e9bb0}
 @media(max-width:520px){#editorDialog #edBody .manual-two-col{grid-template-columns:1fr}#editorDialog #edBody .manual-image-row{grid-template-columns:46px minmax(0,1fr) 30px 30px 30px;gap:5px;padding:5px}#editorDialog #edBody .manual-image-row img,#editorDialog #edBody .manual-image-empty{width:46px;height:42px}}
 
-/* V21.5.1 — edição direta na própria prévia */
+/* V21.5.2 — edição direta na própria prévia */
 #editorDialog .canvas-stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px}
 #editorDialog #editorLivePreview{flex:1 1 auto;min-height:520px;width:100%;height:100%;}
 #editorDialog .direct-edit-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;width:100%;max-width:100%;padding:10px 12px;background:#111722;border:1px solid #344056;border-radius:12px;color:#e6edf8;z-index:2}
 #editorDialog .direct-edit-bar span{font-size:12px;line-height:1.4;flex:1 1 180px;color:#b8c5d9}
 #editorDialog .direct-edit-bar button{font-size:12px;padding:9px 12px;background:#dce7f7;color:#151a23;border-radius:8px;white-space:nowrap}
 @media(max-width:720px){#editorDialog .canvas-stage{padding:8px;gap:8px}#editorDialog #editorLivePreview{min-height:380px;height:100%;width:100%!important}#editorDialog .direct-edit-bar{position:sticky;bottom:0;box-shadow:0 -6px 20px #0003;padding:8px}#editorDialog .direct-edit-bar span{flex-basis:100%;font-size:11px}}
+
+/* V21.5.2 — controles contextuais compactos do Radar Studio */
+#editorDialog .direct-edit-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#editorDialog .direct-edit-controls label{display:flex;align-items:center;gap:5px;font-size:11px;color:#d8e1ef}
+#editorDialog .direct-edit-controls input[type=color]{width:34px;height:30px;padding:2px;border:1px solid #526078;border-radius:7px;background:#111722}
+#editorDialog .direct-edit-controls input[type=range]{width:100px;accent-color:#83aaff}
+#editorDialog .direct-edit-controls select{max-width:105px;padding:7px;border-radius:7px;background:#202a3a;color:#f3f6fc;border:1px solid #526078}
+@media(max-width:520px){#editorDialog .direct-edit-controls{width:100%;justify-content:space-between}#editorDialog .direct-edit-controls input[type=range]{width:85px}}

@@ -1,4 +1,4 @@
-RADAR DE CLIENTES — V21.5.1
+RADAR DE CLIENTES — V21.5.2
 Pacote: correção de compatibilidade do módulo de integrações
 Repositório/serviço de destino: radar-de-clientes-v16
 URL de produção conhecida: https://radar-de-clientes-v16.onrender.com
@@ -77,7 +77,7 @@ ATUALIZAÇÃO DO GITHUB
 1. Faça backup do estado atual do repositório.
 2. Extraia o ZIP e envie o conteúdo dos arquivos para a raiz de https://github.com/nyknike/radar-de-clientes-v16 (não envie uma pasta pai dentro do repositório).
 3. Faça commit na branch que o Render já utiliza.
-4. Aguarde o deploy e confirme que /api/health mostra V21.5.1.
+4. Aguarde o deploy e confirme que /api/health mostra V21.5.2.
 5. Não afirme que produção está validada até testar Supabase, OpenRouter, Cloudflare e Mercado Pago conforme o uso pretendido.
 
 
@@ -131,3 +131,11 @@ VERSÃO 21.5.1 — EDIÇÃO DIRETA NA PRÉVIA
 - Barra contextual permite trocar a imagem principal ou adicionar imagem à galeria.
 - Mantidas as integrações e o fluxo existente de salvar/publicar.
 - Não publicado automaticamente no Render.
+
+
+VERSÃO 21.5.2 — RADAR STUDIO / CONTROLES DIRETOS
+- Adiciona controles contextuais de cor, tamanho e alinhamento para o título/descrição selecionados na prévia.
+- Mantém as alterações no objeto do projeto para salvar no rascunho e gerar o site a partir dos dados editados.
+- Mantém as integrações existentes; nenhuma chave nova é exigida para esses controles locais.
+- Troca de imagem continua usando upload local. Geração de imagem por IA ainda depende de uma integração/modelo de imagem compatível e não é declarada como concluída nesta versão.
+- Não implanta automaticamente no Render.
