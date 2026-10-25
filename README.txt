@@ -77,7 +77,7 @@ ATUALIZAÇÃO DO GITHUB
 1. Faça backup do estado atual do repositório.
 2. Extraia o ZIP e envie o conteúdo dos arquivos para a raiz de https://github.com/nyknike/radar-de-clientes-v16 (não envie uma pasta pai dentro do repositório).
 3. Faça commit na branch que o Render já utiliza.
-4. Aguarde o deploy e confirme que /api/health mostra V21.3.0.
+4. Aguarde o deploy e confirme que /api/health mostra V21.4.0.
 5. Não afirme que produção está validada até testar Supabase, OpenRouter, Cloudflare e Mercado Pago conforme o uso pretendido.
 
 
