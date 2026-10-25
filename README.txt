@@ -1,10 +1,15 @@
-RADAR DE CLIENTES — V21.3.0
+RADAR DE CLIENTES — V21.4.0
 Pacote: correção de compatibilidade do módulo de integrações
 Repositório/serviço de destino: radar-de-clientes-v16
 URL de produção conhecida: https://radar-de-clientes-v16.onrender.com
 
 OBJETIVO DESTA VERSÃO
-Corrigir a inicialização quando o arquivo integrations.js tiver sido enviado por engano à raiz do repositório, mantendo compatibilidade com config/integrations.js. Mantém a base V21.3.0 com IA Studio. Esta versão não contém chaves reais.
+Ampliar a edição visual do Radar Studio e corrigir a aplicação das mudanças geradas pela IA. A rota /api/ai/site-edit agora aceita propriedades reais de estilo global: backgroundColor (fundo da página), textColor, surfaceColor, headingSize, bodySize, density, dark, btn e imageShape, além dos campos anteriores. A interface envia esses campos ao servidor e aplica os resultados na prévia. As mudanças compatíveis também são sincronizadas com a proposta de design selecionada para evitar que o estilo volte ao anterior ao normalizar/salvar o projeto.
+
+A aba Design mantém a personalização direta existente no estilo de um editor visual: cores, fonte, tamanhos dos títulos/textos, formato de imagens, composição/hero, densidade, botões e tema. A IA não publica automaticamente. Esta versão não contém chaves reais.
+
+IMPORTANTE
+A resposta da IA ainda depende do modelo configurado no Render. A mudança desta versão corrige o contrato entre o editor e o endpoint, mas deve ser validada no ambiente publicado. O modelo não foi trocado nesta versão.
 
 SISTEMAS E VARIÁVEIS
 1. Supabase — armazenamento persistente
@@ -102,3 +107,12 @@ V21.3.0 — CORREÇÕES DE FLUXO
 - Profissional recebe carrinho para negócios de alimentação, com quantidade, itens e envio pelo WhatsApp.
 - Regerar versão troca o conjunto de imagens por imagens do banco relevante ao tipo de negócio. Não gera imagens novas por IA; usa o banco de imagens disponível no projeto.
 - Reservas ativadas como módulo padrão para lanchonetes, sem confirmar disponibilidade automaticamente.
+
+
+HISTÓRICO V21.4.0
+- Corrigido o envio de propriedades de estilo global à rota de IA.
+- Prompt distingue cor principal, fundo da página e fundo de cartões.
+- IA pode propor tamanho de títulos/textos, tema, densidade e formatos.
+- Interface aplica e sincroniza os campos de design editados com a proposta selecionada.
+- Mensagem de estado informa quantas propriedades foram recebidas para aplicação.
+- Integrações existentes preservadas; nenhuma chave secreta incluída.

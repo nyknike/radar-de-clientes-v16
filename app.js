@@ -364,7 +364,7 @@ function publicLinkFor(p){ return publicSiteLinkFor(p); }
 function admHeader(){const demo=demoLinkFor(ed);const pub=publicLinkFor(ed);return `<div class="adm-top"><div><span class="eyebrow-ui">🔐 ADM V9</span><strong>${esc(ed.name)}</strong><small>Edite e publique o site do cliente.</small></div><div class="adm-links"><button type="button" class="primary" data-act="open-local-preview">👁️ Abrir prévia</button>${demo?`<button type="button" data-act="open-public-demo">🌐 Abrir demonstração pública</button><button type="button" data-act="send-demo">📨 Enviar ao cliente</button>`:`<button type="button" data-act="open-public-site">🌐 Abrir site público</button>`}<button type="button" data-act="copy-public">📋 Copiar ${demo?"link da demonstração":"link público"}</button></div></div>`}
 function renderTab(){const tabMap={dados:tabDados,ia:tabIA,funcoes:tabFuncoes,conteudo:tabConteudo,design:tabDesign,previa:tabPrevia,final:tabFinal};const nav=[["dados","Informações"],["ia","IA Studio"],["conteudo","Conteúdo"],["design","Design"],["funcoes","Funções"],["final","Publicar"]];$("tabs").innerHTML=nav.map(([k,v])=>`<button type="button" data-act="tab" data-v="${k}" class="${k===tab?"active":""}"><span>${({dados:"Aa",conteudo:"▦",design:"◈",funcoes:"⚙",final:"↗"})[k]}</span>${v}</button>`).join("");$("edBody").innerHTML=(edMode==="adm"&&!editorMode?admHeader():"")+(tabMap[tab]||tabDados)();if(tab==="previa")drawFrame();drawLivePreview()}
 function tabDados(){return`<div class="creator-intro"><div><span class="eyebrow-ui">CRIADOR V9</span><h3>Monte o site de ${esc(ed.name||"seu negócio")}</h3><p>O Radar gera uma primeira versão visual e conteúdo sugerido. Confirme tudo antes de publicar.</p></div><button type="button" class="primary" data-act="auto">✨ Gerar automaticamente</button></div><h4>1. Nível do site</h4><div class="level-grid">${Object.entries(LEVELS).map(([k,v])=>`<label class="level-card ${ed.level===k?"selected":""}"><input type="radio" name="site-level" data-p="level" value="${k}" ${ed.level===k?"checked":""}><strong>${v.name}</strong><span>${v.desc}</span></label>`).join("")}</div><h4>2. Informações</h4><div class="admin-grid">${sel("type","Tipo",Object.entries(labels))}${inp("name","Nome")}${inp("title","Título principal")}${inp("phone","Telefone")}${inp("whatsapp","WhatsApp")}${inp("instagram","Instagram")}</div>${inp("address","Endereço")}<label>Descrição<textarea data-p="description" rows="3">${esc(ed.description||"")}</textarea></label>`}
-function tabIA(){return `<section class="panel"><div class="creator-intro"><div><span class="eyebrow-ui">V21.3.0 · OPENROUTER</span><h3>Editar site com inteligência artificial</h3><p>Descreva o que deseja mudar. A IA sugere conteúdo e design para o projeto atual; nada é publicado automaticamente.</p></div></div><label>O que você quer melhorar?<textarea id="aiSiteInstruction" rows="4" maxlength="2500" placeholder="Ex.: deixe o site de pizzaria mais profissional, melhore o título e a descrição, use cores quentes e organize os itens do cardápio sem inventar preços."></textarea></label><div class="actions"><button type="button" class="primary" data-act="ai-apply">✨ Gerar alterações com IA</button><span id="aiSiteStatus" class="hint" role="status">A chave é usada no servidor do Render; não fica exposta no navegador.</span></div><div class="suggestion-note"><b>Controle:</b> as sugestões aparecem na prévia do editor. Revise nome, textos, itens, cores e preços antes de salvar ou publicar. A IA não publica sozinha.</div></section>`}
+function tabIA(){return `<section class="panel"><div class="creator-intro"><div><span class="eyebrow-ui">V21.4.0 · EDITOR VISUAL + OPENROUTER</span><h3>Editar site com inteligência artificial</h3><p>Descreva o que deseja mudar. A IA pode propor cores de fundo, textos, tamanhos de fonte, formatos e composição. Nada é publicado automaticamente.</p></div></div><label>O que você quer melhorar?<textarea id="aiSiteInstruction" rows="4" maxlength="2500" placeholder="Ex.: mude o fundo de toda a página para azul-marinho, deixe os textos brancos, aumente os títulos e reformule o layout inteiro sem remover o carrinho."></textarea></label><div class="actions"><button type="button" class="primary" data-act="ai-apply">✨ Gerar alterações com IA</button><span id="aiSiteStatus" class="hint" role="status">A chave é usada no servidor do Render; não fica exposta no navegador.</span></div><div class="suggestion-note"><b>Controle:</b> as sugestões aparecem na prévia do editor. Revise nome, textos, itens, cores e preços antes de salvar ou publicar. A IA não publica sozinha.</div></section>`}
 async function applyAISiteEdit(button){
  const instruction=$("aiSiteInstruction")?.value.trim();
  const status=$("aiSiteStatus");
@@ -372,16 +372,31 @@ async function applyAISiteEdit(button){
  button.disabled=true;button.textContent="⏳ Criando sugestão…";
  if(status)status.textContent="Enviando instrução ao servidor seguro…";
  try{
-  const project={name:ed.name,type:ed.type,title:ed.title,description:ed.description,c1:ed.c1,c2:ed.c2,font:ed.font,visualStyle:ed.visualStyle,layoutVariant:ed.layoutVariant,items:(ed.items||[]).slice(0,15).map(x=>({cat:x.cat,name:x.name,price:x.price,desc:x.desc,img:x.img}))};
+  const project={name:ed.name,type:ed.type,title:ed.title,description:ed.description,c1:ed.c1,c2:ed.c2,backgroundColor:ed.backgroundColor,textColor:ed.textColor,surfaceColor:ed.surfaceColor,headingSize:ed.headingSize,bodySize:ed.bodySize,density:ed.density,dark:ed.dark,btn:ed.btn,imageShape:ed.imageShape,font:ed.font,visualStyle:ed.visualStyle,layoutVariant:ed.layoutVariant,items:(ed.items||[]).slice(0,15).map(x=>({cat:x.cat,name:x.name,price:x.price,desc:x.desc,img:x.img}))};
   const response=await fetch("/api/ai/site-edit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({instruction,project})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.ok)throw new Error(data.error||"A edição por IA falhou.");
   const patch=data.patch||{};
-  for(const k of ["title","description","c1","c2","font","visualStyle","layoutVariant"])if(typeof patch[k]==="string")ed[k]=patch[k];
+  const stringFields=["title","description","c1","c2","backgroundColor","textColor","surfaceColor","font","visualStyle","layoutVariant","density","btn","imageShape"];
+  for(const k of stringFields)if(typeof patch[k]==="string")ed[k]=patch[k];
+  for(const k of ["headingSize","bodySize"])if(Number.isFinite(Number(patch[k])))ed[k]=Number(patch[k]);
+  if(typeof patch.dark==="boolean")ed.dark=patch.dark;
   if(Array.isArray(patch.items))ed.items=patch.items.slice(0,12).map((x,i)=>({...((ed.items||[])[i]||{img:""}),...x,img:(ed.items||[])[i]?.img||x.img||""}));
-  ensureDesignProposals(ed);drawLivePreview();
-  if(status)status.textContent=`Sugestão recebida${data.model?` (${data.model})`:""}. Confira a prévia e clique em Salvar.`;
-  setStatus("A IA preparou alterações. Revise antes de salvar ou publicar.");
+  ensureDesignProposals(ed);
+  const selected=ed.designProposals?.[ed.selectedDesign||0];
+  if(selected){
+    if(typeof patch.font==="string")selected.font=patch.font;
+    if(typeof patch.btn==="string")selected.shape=patch.btn;
+    if(typeof patch.layoutVariant==="string")selected.hero=patch.layoutVariant;
+    if(typeof patch.visualStyle==="string")selected.visualStyle=patch.visualStyle;
+    if(typeof patch.c1==="string")selected.c1=patch.c1;
+    if(typeof patch.c2==="string")selected.c2=patch.c2;
+    if(typeof patch.dark==="boolean")selected.dark=patch.dark;
+  }
+  drawLivePreview();
+  const changed=Object.keys(patch).filter(k=>k!=="items"||Array.isArray(patch.items));
+  if(status)status.textContent=`${changed.length} propriedade(s) aplicada(s)${data.model?` (${data.model})`:""}. Confira a prévia e clique em Salvar.`;
+  setStatus("Alterações aplicadas à prévia. Revise antes de salvar ou publicar.");
  }catch(err){if(status)status.textContent=err.message||"Não foi possível editar com IA.";}
  finally{button.disabled=false;button.textContent="✨ Gerar alterações com IA"}
 }
