@@ -1,4 +1,4 @@
-RADAR DE CLIENTES — V21.4.0
+RADAR DE CLIENTES — V21.5.0
 Pacote: correção de compatibilidade do módulo de integrações
 Repositório/serviço de destino: radar-de-clientes-v16
 URL de produção conhecida: https://radar-de-clientes-v16.onrender.com
@@ -77,7 +77,7 @@ ATUALIZAÇÃO DO GITHUB
 1. Faça backup do estado atual do repositório.
 2. Extraia o ZIP e envie o conteúdo dos arquivos para a raiz de https://github.com/nyknike/radar-de-clientes-v16 (não envie uma pasta pai dentro do repositório).
 3. Faça commit na branch que o Render já utiliza.
-4. Aguarde o deploy e confirme que /api/health mostra V21.4.0.
+4. Aguarde o deploy e confirme que /api/health mostra V21.5.0.
 5. Não afirme que produção está validada até testar Supabase, OpenRouter, Cloudflare e Mercado Pago conforme o uso pretendido.
 
 
@@ -109,10 +109,17 @@ V21.3.0 — CORREÇÕES DE FLUXO
 - Reservas ativadas como módulo padrão para lanchonetes, sem confirmar disponibilidade automaticamente.
 
 
-HISTÓRICO V21.4.0
+HISTÓRICO V21.4.0 (base desta versão)
 - Corrigido o envio de propriedades de estilo global à rota de IA.
 - Prompt distingue cor principal, fundo da página e fundo de cartões.
 - IA pode propor tamanho de títulos/textos, tema, densidade e formatos.
 - Interface aplica e sincroniza os campos de design editados com a proposta selecionada.
 - Mensagem de estado informa quantas propriedades foram recebidas para aplicação.
 - Integrações existentes preservadas; nenhuma chave secreta incluída.
+
+
+VERSÃO 21.5.0 — EDITOR MANUAL
+- Nova aba Editor manual com ajuste direto de textos, alinhamento, tamanhos e deslocamento do título/descrição.
+- Controles de enquadramento da imagem principal, upload múltiplo para galeria e reordenação de imagens/seções.
+- Chat IA preservado como assistente opcional; integrações Supabase, OpenRouter, Cloudflare Pages e Mercado Pago mantidas.
+- Esta versão é um pacote de código: não foi implantada automaticamente no Render.
