@@ -159,7 +159,7 @@ body.visual-editor-mode .status{display:none}
 @media(max-width:520px){#editorDialog .direct-edit-controls{width:100%;justify-content:space-between}#editorDialog .direct-edit-controls input[type=range]{width:85px}}
 
 
-/* V21.5.3 — Studio focado em criação profissional e prévia utilizável */
+/* V21.5.4 — Studio focado em criação profissional e prévia utilizável */
 #editorDialog .direct-edit-bar{display:none!important}
 #editorDialog .editor-workarea{grid-template-columns:58px minmax(270px, .78fr) minmax(420px,1.35fr);}
 #editorDialog .editor-canvas{min-width:0;min-height:0;}

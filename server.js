@@ -252,16 +252,49 @@ app.post("/api/ai/test", async (req, res) => {
   }
 });
 
+// V21.5.4: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
+// Usa o token Cloudflare já existente se ele tiver permissão Workers AI > Run.
+// Limites locais conservadores para evitar uso acidental excessivo.
+const generatedImageRequests = new Map();
+const generatedImageDaily = new Map();
+app.post("/api/ai/generate-image", async (req,res)=>{
+  const token=process.env.CLOUDFLARE_API_TOKEN, account=process.env.CLOUDFLARE_ACCOUNT_ID;
+  if(!token||!account) return res.status(503).json({ok:false,error:"Configure CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID no Render. O token precisa da permissão Workers AI: Run."});
+  const ip=String(req.ip||req.socket?.remoteAddress||"unknown"), now=Date.now();
+  const recent=(generatedImageRequests.get(ip)||[]).filter(t=>now-t<60000);
+  if(recent.length>=2) return res.status(429).json({ok:false,error:"Limite de 2 gerações por minuto. Aguarde um pouco."});
+  const day=new Date().toISOString().slice(0,10), key=`${day}:${ip}`;
+  const count=generatedImageDaily.get(key)||0;
+  if(count>=12) return res.status(429).json({ok:false,error:"Limite local de 12 imagens por dia atingido. Tente amanhã."});
+  const body=req.body||{};
+  const type=String(body.type||"generic").slice(0,40), role=String(body.role||"hero").slice(0,30), subject=String(body.subject||"negócio local").replace(/[<>\r\n]/g," ").slice(0,120);
+  const allowed=new Set(["restaurant","pizza","fast_food","cafe","bakery","barber","salon","pet","shop","market","gym","clinic","hotel","car_repair","generic","other"]);
+  const kind=allowed.has(type)?type:"generic";
+  const concepts={restaurant:"fotografia gastronômica editorial de um prato brasileiro apetitoso, iluminação lateral profissional",pizza:"fotografia gastronômica premium de pizza artesanal recém-assada, queijo e ingredientes frescos",fast_food:"fotografia publicitária de hambúrguer artesanal com ingredientes frescos e composição apetitosa",cafe:"fotografia editorial de café especial e confeitaria em cafeteria aconchegante",bakery:"fotografia profissional de pães artesanais e doces recém-assados",barber:"fotografia de interiores de barbearia premium, cadeiras profissionais, espelhos e iluminação quente",salon:"fotografia editorial de salão de beleza moderno, interior sofisticado e iluminação natural",pet:"fotografia comercial acolhedora de pet shop moderno com animais felizes e ambiente limpo",shop:"fotografia de campanha de loja contemporânea com vitrine elegante e produtos bem expostos",market:"fotografia comercial de mercado de bairro organizado com frutas e verduras frescas",gym:"fotografia profissional de academia moderna com equipamentos organizados e iluminação dramática",clinic:"fotografia de clínica moderna, recepção limpa, luz natural e ambiente confiável",hotel:"fotografia de hotel boutique sofisticado, quarto elegante, roupa de cama impecável e luz natural",car_repair:"fotografia profissional de oficina automotiva moderna, organizada, limpa e bem iluminada",generic:"fotografia editorial premium para um negócio local, composição comercial profissional"};
+  const prompt=`${concepts[kind]||concepts.generic}. ${role==="gallery"?"Imagem complementar de ambiente ou detalhe, enquadramento diferente da imagem principal.":"Imagem principal horizontal de destaque para o site, composição cinematográfica ampla."} Contexto do negócio: ${subject}. Fotografia realista de alta qualidade, direção de arte profissional, textura natural, contraste equilibrado, profundidade, sem texto, sem letras, sem logotipos, sem marca d'água, sem colagem, sem interface de site.`;
+  try{
+    const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/@cf/black-forest-labs/flux-1-schnell`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:AbortSignal.timeout(90000)});
+    const ct=response.headers.get("content-type")||"";
+    if(!response.ok){const msg=(await response.text()).slice(0,500);console.error("Cloudflare image generation HTTP",response.status,msg);return res.status(response.status===429?429:502).json({ok:false,error:response.status===401||response.status===403?"Cloudflare recusou a chamada. Verifique se o token tem permissão Workers AI: Run e se o modelo está disponível no plano.":response.status===429?"Limite de geração da Cloudflare atingido. Tente mais tarde.":"A Cloudflare não conseguiu gerar a imagem. Verifique a conta, o token e a cota gratuita."});}
+    let image="", data;
+    if(ct.includes("application/json")){data=await response.json();image=data?.result?.image||data?.image||"";}
+    else {const buf=Buffer.from(await response.arrayBuffer());image=buf.toString("base64");}
+    if(typeof image!=="string"||!image) return res.status(502).json({ok:false,error:"O modelo respondeu sem uma imagem utilizável."});
+    recent.push(now);generatedImageRequests.set(ip,recent);generatedImageDaily.set(key,count+1);
+    return res.json({ok:true,dataUrl:`data:image/jpeg;base64,${image}`,model:"@cf/black-forest-labs/flux-1-schnell",remainingToday:11-count});
+  }catch(error){console.error("Falha na geração de imagem Cloudflare:",error?.name||"Error",error?.message||"");return res.status(502).json({ok:false,error:error?.name==="TimeoutError"?"A geração demorou demais. Tente novamente.":"Não foi possível conectar ao gerador de imagens Cloudflare."});}
+});
+
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.5.3",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.5.4",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.5.3",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.5.4",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -327,7 +360,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.5.3",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.5.4",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -683,4 +716,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.5.3 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.5.4 em http://localhost:${PORT}`));
