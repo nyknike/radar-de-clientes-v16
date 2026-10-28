@@ -252,14 +252,14 @@ app.post("/api/ai/test", async (req, res) => {
   }
 });
 
-// V21.5.6: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
-// Usa o token Cloudflare já existente se ele tiver permissão Workers AI > Run.
+// V21.5.7: diagnóstico mais claro de falhas do Workers AI; mantém as integrações existentes.
+// Usa CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID já configurados no Render.
 // Limites locais conservadores para evitar uso acidental excessivo.
 const generatedImageRequests = new Map();
 const generatedImageDaily = new Map();
 app.post("/api/ai/generate-image", async (req,res)=>{
   const token=process.env.CLOUDFLARE_API_TOKEN, account=process.env.CLOUDFLARE_ACCOUNT_ID;
-  if(!token||!account) return res.status(503).json({ok:false,error:"Configure CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID no Render. O token precisa da permissão Workers AI: Run."});
+  if(!token||!account) return res.status(503).json({ok:false,error:"Configure CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID no Render. O token precisa da permissão de conta Workers AI adequada para executar modelos (consulte as permissões da Cloudflare)."});
   const ip=String(req.ip||req.socket?.remoteAddress||"unknown"), now=Date.now();
   const recent=(generatedImageRequests.get(ip)||[]).filter(t=>now-t<60000);
   if(recent.length>=2) return res.status(429).json({ok:false,error:"Limite de 2 gerações por minuto. Aguarde um pouco."});
@@ -277,7 +277,19 @@ app.post("/api/ai/generate-image", async (req,res)=>{
   try{
     const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/@cf/black-forest-labs/flux-1-schnell`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:AbortSignal.timeout(90000)});
     const ct=response.headers.get("content-type")||"";
-    if(!response.ok){const msg=(await response.text()).slice(0,500);console.error("Cloudflare image generation HTTP",response.status,msg);return res.status(response.status===429?429:502).json({ok:false,error:response.status===401||response.status===403?"Cloudflare recusou a chamada. Verifique se o token tem permissão Workers AI: Run e se o modelo está disponível no plano.":response.status===429?"Limite de geração da Cloudflare atingido. Tente mais tarde.":"A Cloudflare não conseguiu gerar a imagem. Verifique a conta, o token e a cota gratuita."});}
+    if(!response.ok){
+      const raw=(await response.text()).slice(0,3000);
+      let cfData=null;try{cfData=JSON.parse(raw)}catch{}
+      const cfErrors=Array.isArray(cfData?.errors)?cfData.errors:[];
+      const details=cfErrors.map(e=>[e?.code,e?.message].filter(Boolean).join(": ")).filter(Boolean).join("; ").replace(/[\r\n<>]/g," ").slice(0,500);
+      console.error("Cloudflare image generation HTTP",response.status,"codes",cfErrors.map(e=>e?.code).filter(Boolean).join(",")||"none");
+      let message;
+      if(response.status===401||response.status===403) message="Cloudflare recusou a chamada (HTTP "+response.status+"). Confirme se o Render usa o token atualizado, se CLOUDFLARE_ACCOUNT_ID pertence à mesma conta e se o token tem Account > Workers AI > Read. "+(details?"Detalhe da Cloudflare: "+details:"A resposta não trouxe detalhes adicionais.");
+      else if(response.status===429) message="Limite de geração da Cloudflare atingido (HTTP 429). Tente novamente mais tarde. "+(details?"Detalhe: "+details:"");
+      else if(response.status===404) message="A Cloudflare não encontrou o endpoint ou modelo solicitado (HTTP 404). O modelo configurado é @cf/black-forest-labs/flux-1-schnell. "+(details?"Detalhe: "+details:"");
+      else message="A Cloudflare não conseguiu gerar a imagem (HTTP "+response.status+"). "+(details?"Detalhe da Cloudflare: "+details:"Confira a conta, o modelo e os limites disponíveis.");
+      return res.status(response.status===429?429:502).json({ok:false,error:message});
+    }
     let image="", data;
     if(ct.includes("application/json")){data=await response.json();image=data?.result?.image||data?.image||"";}
     else {const buf=Buffer.from(await response.arrayBuffer());image=buf.toString("base64");}
@@ -290,13 +302,13 @@ app.post("/api/ai/generate-image", async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.5.6",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.5.7",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.5.6",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.5.7",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -362,7 +374,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.5.6",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.5.7",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{

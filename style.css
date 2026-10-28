@@ -159,7 +159,7 @@ body.visual-editor-mode .status{display:none}
 @media(max-width:520px){#editorDialog .direct-edit-controls{width:100%;justify-content:space-between}#editorDialog .direct-edit-controls input[type=range]{width:85px}}
 
 
-/* V21.5.6 — Studio focado em criação profissional e prévia utilizável */
+/* V21.5.7 — Studio focado em criação profissional e prévia utilizável */
 #editorDialog .direct-edit-bar{display:none!important}
 #editorDialog .editor-workarea{grid-template-columns:58px minmax(270px, .78fr) minmax(420px,1.35fr);}
 #editorDialog .editor-canvas{min-width:0;min-height:0;}
@@ -195,5 +195,5 @@ body.visual-editor-mode .status{display:none}
 .site .draft-note{display:none!important;}
 @media(max-width:760px){.site .menu-grid{grid-template-columns:1fr;gap:16px}.site .menu-item{display:grid;grid-template-columns:112px minmax(0,1fr)}.site .menu-item>img{height:100%;min-height:160px}.site .menu-body{padding:14px}.site .menu-body h3{font-size:18px}.site .item-bottom{display:block}.site .hero-content{padding:72px 22px}.site .hero h1{font-size:clamp(42px,12vw,68px)}}
 
-/* V21.5.6 — catálogo de produtos com geração de foto por item */
+/* V21.5.7 — catálogo de produtos com geração de foto por item */
 .product-editor-list{display:grid;gap:14px}.product-editor-card{display:grid;gap:12px;padding:14px;border:1px solid rgba(128,128,128,.24);border-radius:14px;background:var(--surface,#fff)}.product-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.product-editor-image{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;align-items:center}.product-editor-image .editor-item-thumb{width:100px;height:100px;border-radius:10px}.product-image-placeholder{display:grid;place-items:center;text-align:center;width:100px;height:100px;padding:8px;background:rgba(128,128,128,.12);border:1px dashed rgba(128,128,128,.45);border-radius:10px;font-size:12px}.product-editor-actions{display:grid;gap:8px}.product-editor-actions button,.product-editor-actions label{width:100%;justify-content:center}.product-editor-card>.full{width:100%}@media(max-width:560px){.product-editor-fields{grid-template-columns:1fr}.product-editor-image{grid-template-columns:76px minmax(0,1fr)}.product-editor-image .editor-item-thumb,.product-image-placeholder{width:76px;height:76px}.product-editor-actions button{font-size:13px;padding:10px}}
