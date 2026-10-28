@@ -252,7 +252,7 @@ app.post("/api/ai/test", async (req, res) => {
   }
 });
 
-// V21.5.5: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
+// V21.5.6: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
 // Usa o token Cloudflare já existente se ele tiver permissão Workers AI > Run.
 // Limites locais conservadores para evitar uso acidental excessivo.
 const generatedImageRequests = new Map();
@@ -290,13 +290,13 @@ app.post("/api/ai/generate-image", async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.5.5",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.5.6",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.5.5",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.5.6",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -362,7 +362,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.5.5",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.5.6",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -718,4 +718,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.5.5 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.5.6 em http://localhost:${PORT}`));
