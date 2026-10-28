@@ -252,7 +252,7 @@ app.post("/api/ai/test", async (req, res) => {
   }
 });
 
-// V21.5.4: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
+// V21.5.5: geração sob demanda de imagens originais via Cloudflare Workers AI (FLUX.1 schnell).
 // Usa o token Cloudflare já existente se ele tiver permissão Workers AI > Run.
 // Limites locais conservadores para evitar uso acidental excessivo.
 const generatedImageRequests = new Map();
@@ -267,11 +267,13 @@ app.post("/api/ai/generate-image", async (req,res)=>{
   const count=generatedImageDaily.get(key)||0;
   if(count>=12) return res.status(429).json({ok:false,error:"Limite local de 12 imagens por dia atingido. Tente amanhã."});
   const body=req.body||{};
-  const type=String(body.type||"generic").slice(0,40), role=String(body.role||"hero").slice(0,30), subject=String(body.subject||"negócio local").replace(/[<>\r\n]/g," ").slice(0,120);
+  const type=String(body.type||"generic").slice(0,40), role=String(body.role||"hero").slice(0,30), subject=String(body.subject||"negócio local").replace(/[<>\r\n]/g," ").slice(0,120), productName=String(body.productName||"").replace(/[<>\r\n]/g," ").slice(0,100), productDescription=String(body.productDescription||"").replace(/[<>\r\n]/g," ").slice(0,180), productCategory=String(body.productCategory||"").replace(/[<>\r\n]/g," ").slice(0,80);
   const allowed=new Set(["restaurant","pizza","fast_food","cafe","bakery","barber","salon","pet","shop","market","gym","clinic","hotel","car_repair","generic","other"]);
   const kind=allowed.has(type)?type:"generic";
   const concepts={restaurant:"fotografia gastronômica editorial de um prato brasileiro apetitoso, iluminação lateral profissional",pizza:"fotografia gastronômica premium de pizza artesanal recém-assada, queijo e ingredientes frescos",fast_food:"fotografia publicitária de hambúrguer artesanal com ingredientes frescos e composição apetitosa",cafe:"fotografia editorial de café especial e confeitaria em cafeteria aconchegante",bakery:"fotografia profissional de pães artesanais e doces recém-assados",barber:"fotografia de interiores de barbearia premium, cadeiras profissionais, espelhos e iluminação quente",salon:"fotografia editorial de salão de beleza moderno, interior sofisticado e iluminação natural",pet:"fotografia comercial acolhedora de pet shop moderno com animais felizes e ambiente limpo",shop:"fotografia de campanha de loja contemporânea com vitrine elegante e produtos bem expostos",market:"fotografia comercial de mercado de bairro organizado com frutas e verduras frescas",gym:"fotografia profissional de academia moderna com equipamentos organizados e iluminação dramática",clinic:"fotografia de clínica moderna, recepção limpa, luz natural e ambiente confiável",hotel:"fotografia de hotel boutique sofisticado, quarto elegante, roupa de cama impecável e luz natural",car_repair:"fotografia profissional de oficina automotiva moderna, organizada, limpa e bem iluminada",generic:"fotografia editorial premium para um negócio local, composição comercial profissional"};
-  const prompt=`${concepts[kind]||concepts.generic}. ${role==="gallery"?"Imagem complementar de ambiente ou detalhe, enquadramento diferente da imagem principal.":"Imagem principal horizontal de destaque para o site, composição cinematográfica ampla."} Contexto do negócio: ${subject}. Fotografia realista de alta qualidade, direção de arte profissional, textura natural, contraste equilibrado, profundidade, sem texto, sem letras, sem logotipos, sem marca d'água, sem colagem, sem interface de site.`;
+  const productMode=role==="product"; const prompt=productMode
+    ? `Fotografia comercial de produto para catálogo profissional de ${subject}. Produto exato: ${productName||"produto do estabelecimento"}. Categoria: ${productCategory||kind}. Descrição e características informadas: ${productDescription||"sem detalhes adicionais"}. Mostre um único produto claramente reconhecível, bem iluminado, com textura realista, composição editorial premium, fundo limpo e apropriado ao produto, enquadramento quadrado para card de catálogo, alta qualidade fotográfica. Não incluir texto, preço, letras, logotipo, embalagem com marca inventada, marca d'água, colagem ou interface de site. Não inventar elementos de marca específicos.`
+    : `${concepts[kind]||concepts.generic}. ${role==="gallery"?"Imagem complementar de ambiente ou detalhe, enquadramento diferente da imagem principal.":"Imagem principal horizontal de destaque para o site, composição cinematográfica ampla."} Contexto do negócio: ${subject}. Fotografia realista de alta qualidade, direção de arte profissional, textura natural, contraste equilibrado, profundidade, sem texto, sem letras, sem logotipos, sem marca d'água, sem colagem, sem interface de site.`;
   try{
     const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/@cf/black-forest-labs/flux-1-schnell`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:AbortSignal.timeout(90000)});
     const ct=response.headers.get("content-type")||"";
@@ -288,13 +290,13 @@ app.post("/api/ai/generate-image", async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.5.4",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.5.5",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.5.4",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.5.5",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -360,7 +362,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.5.4",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.5.5",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -716,4 +718,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.5.4 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.5.5 em http://localhost:${PORT}`));
