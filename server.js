@@ -119,7 +119,7 @@ const cfg = {
 // V21.5.3: editor visual ampliado; IA pode editar cores globais, fundos, tipografia, densidade e formatos.
 // A chave permanece no servidor; o modelo só pode devolver dados estruturados permitidos.
 const openRouterEditRequests = new Map();
-app.post("/api/ai/site-edit", async (req, res) => {
+app.post("/api/ai/site-edit", adminAuth, async (req, res) => {
   const instruction = typeof req.body?.instruction === "string" ? req.body.instruction.trim() : "";
   const project = req.body?.project && typeof req.body.project === "object" ? req.body.project : {};
   if (!instruction || instruction.length > 2500) return res.status(400).json({ ok:false, error:"Descreva a alteração em até 2500 caracteres." });
@@ -257,7 +257,7 @@ app.post("/api/ai/test", async (req, res) => {
 // Limites locais conservadores para evitar uso acidental excessivo.
 const generatedImageRequests = new Map();
 const generatedImageDaily = new Map();
-app.post("/api/ai/generate-image", async (req,res)=>{
+app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
   const token=process.env.CLOUDFLARE_API_TOKEN, account=process.env.CLOUDFLARE_ACCOUNT_ID;
   if(!token||!account) return res.status(503).json({ok:false,error:"Configure CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID no Render. O token precisa da permissão de conta Workers AI adequada para executar modelos (consulte as permissões da Cloudflare)."});
   const ip=String(req.ip||req.socket?.remoteAddress||"unknown"), now=Date.now();
@@ -302,18 +302,18 @@ app.post("/api/ai/generate-image", async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.5.7",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.6.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.5.7",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.6.0",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
-app.get("/api/state", async (_req,res)=>{if(!await requireStorage(res)) return;res.json({ok:true,state});});
-app.put("/api/state", async (req,res)=>{
+app.get("/api/state", adminAuth, async (_req,res)=>{if(!await requireStorage(res)) return;res.setHeader("Cache-Control","no-store");res.json({ok:true,state});});
+app.put("/api/state", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
   const body=req.body||{};
   if(body.sales!==undefined){ if(!Array.isArray(body.sales)) return res.status(400).json({ok:false,error:"sales precisa ser uma lista."}); state.sales=body.sales; }
@@ -321,7 +321,7 @@ app.put("/api/state", async (req,res)=>{
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível persistir os dados no servidor. Confira a configuração do banco ou disco."});
   res.json({ok:true,savedAt:new Date().toISOString()});
 });
-app.get("/api/demo/:id", async (req,res)=>{
+app.get("/api/demo/:id", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
   const code=String(req.params.id);
   const sale=state.sales.find(x=>String(x.id)===code||String(x.id).replace(/-/g,"").startsWith(code));
@@ -340,7 +340,7 @@ app.get("/api/site/:id", async (req,res)=>{
   const published=state.publishedSites.find(x=>String(x.id)===id);
   if(published?.platform){
     const sale=state.sales.find(x=>String(x.platformId||x.businessId)===id||String(x.businessId)===id)||null;
-    return res.json({ok:true,kind:sale?"demo":"published",platform:published.platform,sale});
+    return res.json({ok:true,kind:sale?"demo":"published",platform:published.platform,sale:sale?{id:sale.id,name:sale.name,stage:sale.stage,demoViewedAt:sale.demoViewedAt||null,approvedAt:sale.approvedAt||null}:null});
   }
   // Compatibilidade com links antigos que usavam o ID da venda.
   const sale=state.sales.find(x=>String(x.id)===id);
@@ -348,14 +348,14 @@ app.get("/api/site/:id", async (req,res)=>{
     const platform=state.publishedSites.find(x=>String(x.id)===String(sale.platformId||sale.businessId))?.platform
       ||state.platforms.find(x=>String(x.id)===String(sale.platformId||sale.businessId));
     if(!platform) return res.status(404).json({ok:false,error:"A demonstração existe, mas o projeto do site não foi encontrado no servidor."});
-    return res.json({ok:true,kind:"demo",platform,sale});
+    return res.json({ok:true,kind:"demo",platform,sale:{id:sale.id,name:sale.name,stage:sale.stage,demoViewedAt:sale.demoViewedAt||null,approvedAt:sale.approvedAt||null}});
   }
   const platform=state.platforms.find(x=>String(x.id)===id);
   if(!platform) return res.status(404).json({ok:false,error:"Site não encontrado no armazenamento público do servidor."});
   res.json({ok:true,kind:"published",platform,sale:null});
 });
 
-app.put("/api/public-sites/:id", async (req,res)=>{
+app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
   const id=String(req.params.id||"").trim(), platform=req.body?.platform;
   const html=typeof req.body?.html==="string"?req.body.html:null;
@@ -374,7 +374,7 @@ app.put("/api/public-sites/:id", async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.5.7",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.6.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -389,7 +389,7 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   if(event==="approved") { sale.approvedAt=new Date().toISOString(); sale.stage="approved"; sale.approvalSource="public-demo"; }
   sale.updatedAt=new Date().toISOString();
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível registrar o evento no armazenamento persistente."});
-  res.json({ok:true,event,sale});
+  res.json({ok:true,event,sale:{id:sale.id,name:sale.name,stage:sale.stage,demoViewedAt:sale.demoViewedAt||null,approvedAt:sale.approvedAt||null,updatedAt:sale.updatedAt}});
 });
 
 // V20.10.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
@@ -652,7 +652,7 @@ async function ensurePagesProject(projectName){
   if(check.status!==404){const d=await check.json().catch(()=>({}));throw new Error((d.errors||[]).map(x=>x.message).join("; ")||`Cloudflare HTTP ${check.status} ao verificar projeto.`);}
   return await cfApi(base,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:projectName,production_branch:"main"})});
 }
-app.post("/api/publish/cloudflare", async (req,res)=>{
+app.post("/api/publish/cloudflare", adminAuth, async (req,res)=>{
   if(!process.env.CLOUDFLARE_API_TOKEN||!process.env.CLOUDFLARE_ACCOUNT_ID){
     return res.status(503).json({ok:false,configured:false,error:"Cloudflare ainda não configurado no servidor."});
   }
@@ -696,7 +696,7 @@ app.post("/api/publish/cloudflare", async (req,res)=>{
   }finally{if(tempDir) await fs.promises.rm(tempDir,{recursive:true,force:true}).catch(()=>{});}
 });
 
-app.post("/api/domain/connect", async (req,res)=>{
+app.post("/api/domain/connect", adminAuth, async (req,res)=>{
   const {domain}=req.body||{};
   if(!domain)return res.status(400).json({ok:false,error:"Domínio obrigatório."});
   if(!process.env.CLOUDFLARE_API_TOKEN||!process.env.CLOUDFLARE_ACCOUNT_ID){
@@ -730,4 +730,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.5.6 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.6.0 em http://localhost:${PORT}`));

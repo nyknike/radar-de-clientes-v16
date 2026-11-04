@@ -139,3 +139,13 @@ VERSÃO 21.5.2 — RADAR STUDIO / CONTROLES DIRETOS
 - Mantém as integrações existentes; nenhuma chave nova é exigida para esses controles locais.
 - Troca de imagem continua usando upload local. Geração de imagem por IA ainda depende de uma integração/modelo de imagem compatível e não é declarada como concluída nesta versão.
 - Não implanta automaticamente no Render.
+
+
+V21.6.0 — SEGURANÇA DO PAINEL E DADOS
+- Configure ADMIN_PANEL_SECRET no Render (Environment) com um segredo forte e exclusivo.
+- O painel solicita esse segredo ao acessar dados/ações administrativas; ele fica apenas em sessionStorage da aba/sessão atual, não no link nem em localStorage.
+- Não compartilhe ADMIN_PANEL_SECRET com clientes. Clientes recebem apenas o link público do site.
+- Rotas de estado, gravação de sites, edição/geração por IA, publicação Cloudflare e conexão de domínio exigem autenticação administrativa.
+- GET /api/demo/:id também exige autenticação; respostas públicas de site/evento foram reduzidas para não devolver telefones ou outros dados comerciais da venda.
+- O painel continua usando um segredo administrativo único. Isso não equivale a contas separadas por cliente/projeto; não entregue acesso ao painel a clientes.
+- A aprovação pública da demonstração ainda é um aceite informal via link; não use como assinatura contratual nem confirmação de pagamento.

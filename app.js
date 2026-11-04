@@ -1,4 +1,21 @@
 const $=id=>document.getElementById(id);
+// V21.6.0: segredo administrativo só fica na sessão atual do navegador.
+// Rotas públicas de visualização/reserva não recebem o segredo.
+const RADAR_AUTH_KEY="radarAdminTokenSessionV216";
+const radarOriginalFetch=window.fetch.bind(window);
+const radarProtectedPath=path=>/^\/api\/(state(?:$|\?)|demo\/[^/]+(?:$|\?)|public-sites\/|publish\/cloudflare|domain\/connect|ai\/(site-edit|generate-image))/.test(path);
+async function radarFetch(input, init={}){
+  const url=typeof input==="string"?input:input?.url||"";
+  const path=url.startsWith(location.origin)?url.slice(location.origin.length):url;
+  if(!radarProtectedPath(path))return radarOriginalFetch(input,init);
+  let token=sessionStorage.getItem(RADAR_AUTH_KEY)||"";
+  if(!token){token=prompt("Acesso administrativo do Radar\nInforme o valor de ADMIN_PANEL_SECRET configurado no Render. O segredo fica somente nesta sessão do navegador.");if(!token)return new Response(JSON.stringify({ok:false,error:"Ação cancelada: autenticação administrativa necessária."}),{status:401,headers:{"Content-Type":"application/json"}});token=token.trim();if(!token)return new Response(JSON.stringify({ok:false,error:"Ação cancelada: autenticação administrativa necessária."}),{status:401,headers:{"Content-Type":"application/json"}});sessionStorage.setItem(RADAR_AUTH_KEY,token)}
+  const run=()=>{const headers=new Headers(init.headers||(input instanceof Request?input.headers:undefined));headers.set("Authorization",`Bearer ${token}`);return radarOriginalFetch(input,{...init,headers})};
+  let response=await run();
+  if(response.status===401){sessionStorage.removeItem(RADAR_AUTH_KEY);token=prompt("O segredo administrativo foi recusado. Confira ADMIN_PANEL_SECRET no Render e informe novamente.");if(!token)return response;token=token.trim();if(!token)return response;sessionStorage.setItem(RADAR_AUTH_KEY,token);response=await run()}
+  return response;
+}
+window.fetch=radarFetch;
 const SERVERS=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://overpass.private.coffee/api/interpreter","https://overpass.openstreetmap.fr/api/interpreter","https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
 const KEY="radarPlatformsV14",OLD_KEY="radarPlatformsV12",SALES_KEY="radarSalesPipelineV15",DEMO_EVENT_KEY="radarDemoEventsV152";
 let editorMode=new URLSearchParams(location.search).has("editor");
