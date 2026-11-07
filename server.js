@@ -302,13 +302,13 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.6.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.7.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.6.0",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.7.0",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -374,7 +374,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.6.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.7.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -392,6 +392,41 @@ app.post("/api/demo/:id/event", async (req,res)=>{
   res.json({ok:true,event,sale:{id:sale.id,name:sale.name,stage:sale.stage,demoViewedAt:sale.demoViewedAt||null,approvedAt:sale.approvedAt||null,updatedAt:sale.updatedAt}});
 });
 
+
+// V21.7.0: sessão administrativa assinada no servidor; o segredo nunca fica no JS.
+const ADMIN_SESSION_COOKIE="radar_admin_session";
+const ADMIN_SESSION_TTL=12*60*60*1000;
+function signAdminSession(exp,nonce){
+  const secret=process.env.ADMIN_PANEL_SECRET||"";
+  const payload=`${exp}.${nonce}`;
+  const sig=crypto.createHmac("sha256",secret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+function validAdminSession(req){
+  const expected=process.env.ADMIN_PANEL_SECRET;if(!expected)return false;
+  const cookies=String(req.headers.cookie||"").split(";").map(x=>x.trim());
+  const raw=cookies.find(x=>x.startsWith(ADMIN_SESSION_COOKIE+"="))?.slice(ADMIN_SESSION_COOKIE.length+1);
+  if(!raw)return false;
+  let decoded;try{decoded=decodeURIComponent(raw)}catch{return false}
+  const [expText,nonce,sig,...extra]=decoded.split(".");
+  if(extra.length||!/^\d+$/.test(expText||"")||!nonce||!sig||Number(expText)<Date.now())return false;
+  const expectedSig=signAdminSession(expText,nonce).split(".").at(-1);
+  const a=Buffer.from(sig),b=Buffer.from(expectedSig);
+  return a.length===b.length&&crypto.timingSafeEqual(a,b);
+}
+app.post("/api/admin/session",(req,res)=>{
+  const expected=process.env.ADMIN_PANEL_SECRET;
+  if(!expected)return res.status(503).json({ok:false,error:"Configure ADMIN_PANEL_SECRET no Render."});
+  const supplied=String(req.body?.secret||"");
+  const a=Buffer.from(supplied),b=Buffer.from(expected);
+  if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({ok:false,error:"Senha administrativa incorreta."});
+  const exp=Date.now()+ADMIN_SESSION_TTL,nonce=crypto.randomBytes(18).toString("base64url");
+  const value=signAdminSession(exp,nonce);
+  res.setHeader("Set-Cookie",`${ADMIN_SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ADMIN_SESSION_TTL/1000)}${isProduction?"; Secure":""}`);
+  res.setHeader("Cache-Control","no-store");res.json({ok:true,expiresAt:new Date(exp).toISOString()});
+});
+app.delete("/api/admin/session",(req,res)=>{res.setHeader("Set-Cookie",`${ADMIN_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProduction?"; Secure":""}`);res.json({ok:true});});
+
 // V20.10.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
@@ -406,10 +441,12 @@ function cleanText(v,max=500){return String(v??"").replace(/[<>\u0000-\u001f]/g,
 function adminAuth(req,res,next){
   const expected=process.env.ADMIN_PANEL_SECRET;
   if(!expected) return res.status(503).json({ok:false,error:"Painel administrativo ainda não configurado. Defina ADMIN_PANEL_SECRET no Render."});
+  if(validAdminSession(req)){res.setHeader("Cache-Control","no-store");return next();}
+  // Compatibilidade temporária com clientes antigos V21.6.0.
   const supplied=String(req.get("authorization")||"").replace(/^Bearer\s+/i,"");
   const a=Buffer.from(supplied), b=Buffer.from(expected);
-  if(a.length!==b.length||!crypto.timingSafeEqual(a,b)) return res.status(401).json({ok:false,error:"Acesso administrativo não autorizado."});
-  next();
+  if(a.length===b.length&&crypto.timingSafeEqual(a,b)) return next();
+  return res.status(401).json({ok:false,error:"Sessão administrativa ausente ou expirada. Entre novamente uma vez para liberar o painel."});
 }
 
 // Testes reais de conexão ficam protegidos por ADMIN_PANEL_SECRET.
@@ -730,4 +767,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.6.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.7.0 em http://localhost:${PORT}`));

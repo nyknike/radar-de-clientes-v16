@@ -149,3 +149,11 @@ V21.6.0 — SEGURANÇA DO PAINEL E DADOS
 - GET /api/demo/:id também exige autenticação; respostas públicas de site/evento foram reduzidas para não devolver telefones ou outros dados comerciais da venda.
 - O painel continua usando um segredo administrativo único. Isso não equivale a contas separadas por cliente/projeto; não entregue acesso ao painel a clientes.
 - A aprovação pública da demonstração ainda é um aceite informal via link; não use como assinatura contratual nem confirmação de pagamento.
+
+
+V21.7.0 — AUTENTICAÇÃO POR SESSÃO E EDITOR
+- Informe ADMIN_PANEL_SECRET uma vez; a sessão administrativa usa cookie HttpOnly por até 12 horas.
+- O estado remoto do Supabase é a fonte principal ao abrir o Radar e ao abrir projetos por ?editor=ID.
+- A aba Edição manual agora aparece na navegação do editor.
+- Mantenha SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY configuradas para persistência entre dispositivos em produção.
+- A versão exibida no cabeçalho e os identificadores de cache foram atualizados para V21.7.0.
