@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import https from "node:https";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 // Compatibilidade de implantação: aceita o módulo organizado em config/ e também
@@ -33,7 +34,64 @@ const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "radar-state.json");
 const isProduction = process.env.NODE_ENV === "production";
 let state = { sales: [], platforms: [], events: [], publishedSites: [], reservations: [], orders: [] };
-const storage = { configured: false, connected: false, error: null, checkedAt: null };
+const storage = { configured: false, connected: false, error: null, checkedAt: null, host: null, failureCode: null, failureHint: null };
+let lastRemoteAttemptAt = 0;
+
+function getErrorCode(error) {
+  let current = error;
+  for (let i = 0; current && i < 5; i++, current = current.cause) {
+    if (current.code) return String(current.code);
+  }
+  return error?.name === "TimeoutError" ? "ETIMEDOUT" : null;
+}
+function supabaseFailureHint(code, message = "") {
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") return "Falha de DNS ao localizar o host do Supabase. Confira se SUPABASE_URL contém o domínio correto do projeto.";
+  if (["ECONNRESET", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"].includes(code)) return "A conexão de rede com o Supabase foi interrompida ou recusada. Verifique disponibilidade do projeto e rede.";
+  if (code === "ETIMEDOUT" || /timeout/i.test(message)) return "A conexão com o Supabase excedeu o tempo limite.";
+  if (code === "ERR_INVALID_URL" || /Invalid URL/i.test(message)) return "SUPABASE_URL não é uma URL válida. Use a URL HTTPS do projeto, sem espaços ou caminhos extras.";
+  if (code === "CERT_HAS_EXPIRED" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "ERR_TLS_CERT_ALTNAME_INVALID") return "Falha na validação TLS/certificado ao conectar ao Supabase.";
+  return "Falha de transporte ao conectar ao Supabase. Consulte o código técnico e o host informados no diagnóstico.";
+}
+function describeSupabaseError(error, url) {
+  const code = getErrorCode(error);
+  const host = (() => { try { return new URL(url).hostname; } catch { return null; } })();
+  const message = String(error?.message || "Falha desconhecida").slice(0, 180);
+  return { message: code ? `${message} (${code})` : message, code, host, hint: supabaseFailureHint(code, message) };
+}
+async function supabaseFetch(url, options = {}) {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+  } catch (fetchError) {
+    // Fallback com https.request nativo para contornar falhas específicas do transporte Undici/fetch.
+    try {
+      const target = new URL(url);
+      if (target.protocol !== "https:") throw new Error("SUPABASE_URL precisa usar HTTPS.");
+      const result = await new Promise((resolve, reject) => {
+        const req = https.request(target, { method: options.method || "GET", headers: options.headers || {}, timeout: 10000 }, response => {
+          const chunks = [];
+          response.on("data", chunk => chunks.push(chunk));
+          response.on("end", () => {
+            const body = Buffer.concat(chunks).toString("utf8");
+            resolve({ ok: response.statusCode >= 200 && response.statusCode < 300, status: response.statusCode, text: async () => body, json: async () => JSON.parse(body || "null") });
+          });
+        });
+        req.on("timeout", () => req.destroy(Object.assign(new Error("Supabase request timed out"), { code: "ETIMEDOUT" })));
+        req.on("error", reject);
+        if (options.body) req.write(options.body);
+        req.end();
+      });
+      console.warn("Supabase: fallback HTTPS nativo concluiu a requisição após falha do fetch.");
+      return result;
+    } catch (fallbackError) {
+      const primaryCode = getErrorCode(fetchError);
+      const fallbackCode = getErrorCode(fallbackError);
+      const combined = new Error(`fetch failed; fallback HTTPS também falhou${fallbackCode ? ` (${fallbackCode})` : ""}${primaryCode ? `; fetch: ${primaryCode}` : ""}`);
+      combined.code = fallbackCode || primaryCode;
+      combined.cause = fallbackError;
+      throw combined;
+    }
+  }
+}
 function normalizeState(x={}) {
   return {
     sales: Array.isArray(x.sales) ? x.sales : [],
@@ -51,45 +109,50 @@ function loadState(){
   } catch(err) { console.error("Não foi possível carregar o estado local:",err.message); }
 }
 async function loadRemoteState(){
-  const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url=String(process.env.SUPABASE_URL||"").trim(), key=String(process.env.SUPABASE_SERVICE_ROLE_KEY||"").trim();
   storage.configured=!!(url&&key);
   storage.checkedAt=new Date().toISOString();
+  storage.host = (() => { try { return new URL(url).hostname; } catch { return null; } })();
+  lastRemoteAttemptAt = Date.now();
   if(!url||!key){
     storage.connected=false;
     storage.error="Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no serviço Web do Render.";
+    storage.failureCode="MISSING_ENV";
+    storage.failureHint="Uma ou ambas as variáveis do Supabase estão ausentes ou vazias.";
     return false;
   }
   try{
-    const r=await fetch(`${url.replace(/\/$/,"")}/rest/v1/radar_state?id=eq.1&select=state`,{
-      headers:{apikey:key,Authorization:`Bearer ${key}`,Accept:"application/json"},
-      signal:AbortSignal.timeout(10000)
+    const parsedUrl=new URL(url);
+    if(parsedUrl.protocol!=="https:") throw Object.assign(new Error("SUPABASE_URL precisa usar HTTPS."),{code:"ERR_INVALID_URL"});
+    const r=await supabaseFetch(`${url.replace(/\/$/,"")}/rest/v1/radar_state?id=eq.1&select=state`,{
+      headers:{apikey:key,Authorization:`Bearer ${key}`,Accept:"application/json"}
     });
     if(!r.ok) throw new Error(`Supabase HTTP ${r.status}: ${(await r.text()).slice(0,240)}`);
     const rows=await r.json();
     state=normalizeState(rows[0]?.state || {});
-    storage.connected=true; storage.error=null;
+    storage.connected=true; storage.error=null; storage.failureCode=null; storage.failureHint=null;
     return true;
   }catch(err){
+    const detail=describeSupabaseError(err,url);
     storage.connected=false;
-    storage.error=err.message;
-    console.error("Falha ao conectar ao Supabase:",err.message);
+    storage.error=detail.message; storage.failureCode=detail.code; storage.failureHint=detail.hint; storage.host=detail.host;
+    console.error("Falha ao conectar ao Supabase:",JSON.stringify({host:detail.host,code:detail.code,message:detail.message,hint:detail.hint}));
     return false;
   }
 }
 async function persistState(){
-  const url=process.env.SUPABASE_URL, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url=String(process.env.SUPABASE_URL||"").trim(), key=String(process.env.SUPABASE_SERVICE_ROLE_KEY||"").trim();
   if(url&&key){
     try{
-      const r=await fetch(`${url.replace(/\/$/,"")}/rest/v1/radar_state?on_conflict=id`,{
+      const r=await supabaseFetch(`${url.replace(/\/$/,"")}/rest/v1/radar_state?on_conflict=id`,{
         method:"POST",
         headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},
-        body:JSON.stringify({id:1,state,updated_at:new Date().toISOString()}),
-        signal:AbortSignal.timeout(10000)
+        body:JSON.stringify({id:1,state,updated_at:new Date().toISOString()})
       });
       if(!r.ok) throw new Error(`Supabase HTTP ${r.status}: ${(await r.text()).slice(0,240)}`);
-      storage.connected=true; storage.error=null; storage.checkedAt=new Date().toISOString();
+      storage.connected=true; storage.error=null; storage.failureCode=null; storage.failureHint=null; storage.checkedAt=new Date().toISOString();
       return true;
-    }catch(err){ storage.connected=false; storage.error=err.message; console.error("Falha ao salvar Supabase:",err.message); return false; }
+    }catch(err){ const detail=describeSupabaseError(err,url); storage.connected=false; storage.error=detail.message; storage.failureCode=detail.code; storage.failureHint=detail.hint; storage.host=detail.host; console.error("Falha ao salvar Supabase:",JSON.stringify({host:detail.host,code:detail.code,message:detail.message,hint:detail.hint})); return false; }
   }
   if(isProduction){ storage.connected=false; storage.error="Banco persistente não configurado em produção."; return false; }
   try { fs.mkdirSync(DATA_DIR,{recursive:true}); const tmp=STATE_FILE+".tmp"; fs.writeFileSync(tmp,JSON.stringify(state,null,2)); fs.renameSync(tmp,STATE_FILE); return true; }
@@ -100,7 +163,7 @@ else { loadState(); storage.connected=true; storage.error=null; }
 const stateReady = isProduction ? loadRemoteState() : Promise.resolve(true);
 async function requireStorage(res){
   await stateReady;
-  if(isProduction && !storage.connected) await loadRemoteState();
+  if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
   if(isProduction && !storage.connected){
     res.status(503).json({ok:false,error:"Armazenamento persistente indisponível. Configure/verifique o Supabase antes de publicar ou salvar sites.",storage:{configured:storage.configured,connected:false,detail:storage.error}});
     return false;
@@ -301,14 +364,14 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
-  if(isProduction && !storage.connected) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.7.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,checkedAt:storage.checkedAt},integrations:cfg});
+  if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
+  res.status(200).json({ok:true,version:"V21.7.1",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.7.0",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.7.1",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -374,7 +437,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.7.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.7.1",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -767,4 +830,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.7.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.7.1 em http://localhost:${PORT}`));
