@@ -33,7 +33,7 @@ app.use((req,res,next)=>{ if(req.path==="/"||req.path==="/index.html"||(req.path
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const STATE_FILE = path.join(DATA_DIR, "radar-state.json");
 const isProduction = process.env.NODE_ENV === "production";
-let state = { sales: [], platforms: [], events: [], publishedSites: [], reservations: [], orders: [] };
+let state = { sales: [], platforms: [], events: [], publishedSites: [], reservations: [], orders: [], clientData: {} };
 const storage = { configured: false, connected: false, error: null, checkedAt: null, host: null, failureCode: null, failureHint: null };
 let lastRemoteAttemptAt = 0;
 
@@ -99,7 +99,8 @@ function normalizeState(x={}) {
     events: Array.isArray(x.events) ? x.events : [],
     publishedSites: Array.isArray(x.publishedSites) ? x.publishedSites : [],
     reservations: Array.isArray(x.reservations) ? x.reservations : [],
-    orders: Array.isArray(x.orders) ? x.orders : []
+    orders: Array.isArray(x.orders) ? x.orders : [],
+    clientData: x.clientData && typeof x.clientData === "object" && !Array.isArray(x.clientData) ? x.clientData : {}
   };
 }
 function loadState(){
@@ -365,13 +366,13 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.7.1",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.8.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.7.1",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.8.0",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -381,6 +382,12 @@ app.put("/api/state", adminAuth, async (req,res)=>{
   const body=req.body||{};
   if(body.sales!==undefined){ if(!Array.isArray(body.sales)) return res.status(400).json({ok:false,error:"sales precisa ser uma lista."}); state.sales=body.sales; }
   if(body.platforms!==undefined){ if(!Array.isArray(body.platforms)) return res.status(400).json({ok:false,error:"platforms precisa ser uma lista."}); state.platforms=body.platforms; }
+  if(body.clientData!==undefined){
+    if(!body.clientData || typeof body.clientData !== "object" || Array.isArray(body.clientData)) return res.status(400).json({ok:false,error:"clientData precisa ser um objeto."});
+    const bytes=Buffer.byteLength(JSON.stringify(body.clientData),"utf8");
+    if(bytes>12*1024*1024) return res.status(413).json({ok:false,error:"Os dados auxiliares ultrapassam 12 MB. Reduza arquivos/imagens armazenados no navegador."});
+    state.clientData={...(state.clientData||{}),...body.clientData};
+  }
   if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível persistir os dados no servidor. Confira a configuração do banco ou disco."});
   res.json({ok:true,savedAt:new Date().toISOString()});
 });
@@ -437,7 +444,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.7.1",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.8.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -830,4 +837,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.7.1 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.8.0 em http://localhost:${PORT}`));

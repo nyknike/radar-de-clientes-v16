@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-// V21.7.1: autenticação administrativa por sessão HttpOnly (senha informada uma vez).
+// V21.8.0: autenticação administrativa por sessão HttpOnly (senha informada uma vez).
 const RADAR_AUTH_KEY="radarAdminTokenSessionV216";
 const radarOriginalFetch=window.fetch.bind(window);
 const radarProtectedPath=path=>/^\/api\/(state(?:$|\?)|demo\/[^/]+(?:$|\?)|public-sites\/|publish\/cloudflare|domain\/connect|ai\/(site-edit|generate-image)|integrations\/test|admin\/)/.test(path);
@@ -197,9 +197,20 @@ function fillContent(p){const T=TPL[tplKey(p.type)],pr=presetFor(p.type),v=varia
 function norm(p){if(typeof p.items==="string")p.items=p.items.split(/\n+/).filter(Boolean).map(l=>{const[m,...r]=l.split(/\s[—-]\s/);return{cat:"",name:m.trim(),price:r.join(" ").replace(/^R\$\s*/,""),desc:"",img:""}});if(p.type==="hairdresser")p.type=/barb/i.test(p.name||"")?"barber":"salon";const txt=[p.name,p.category,p.description].filter(Boolean).join(" ");if(/pet shop|agro pet|petshop|produtos pet/i.test(txt))p.type="pet";const pr=presetFor(p.type||"other"),v=variantFor(p);const out=Object.assign({title:p.name,description:"",items:[],gallery:[],reviews:[],banner:"",btn:v.shape,level:p.level||"professional",sections:sectionsForLevel(p.level||"professional"),published:false,c1:p.color||pr.c1,c2:pr.c2,font:v.font,dark:v.dark,visualStyle:"auto",layoutVariant:v.hero,density:v.density,visualVariant:v.id,contentIsSuggested:false,modules:defaultModules(p.type),staff:[],services:[],plans:[],classes:[],rooms:[],specialties:[],designProposals:null,selectedDesign:0,designImages:[],backgroundColor:"",textColor:"",surfaceColor:"",headingSize:64,bodySize:16},p);ensureBusinessData(out);ensureDesignProposals(out);applyDesignProposal(out,out.selectedDesign);return repairImageRepetition(out)}
 platforms=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(OLD_KEY)||localStorage.getItem("radarPlatformsV10")||localStorage.getItem("radarPlatformsV9")||localStorage.getItem("radarPlatformsV8")||localStorage.getItem("radarPlatformsV7")||"[]").map(norm); loadSales(); try{const saved=JSON.parse(localStorage.getItem("radarProspectionLocationV14")||"null");if(saved&&saved.lat&&saved.lon)here=saved}catch{}
 function loadSales(){try{sales=JSON.parse(localStorage.getItem(SALES_KEY)||"[]");if(!Array.isArray(sales))sales=[]}catch{sales=[]}}
+function collectRadarLocalData(){
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(!key || !key.startsWith("radar") || key===KEY || key===SALES_KEY || key.startsWith("radarAdmin")) continue;
+    const value=localStorage.getItem(key);
+    if(value!==null) data[key]=value;
+  }
+  return data;
+}
 async function persistServerState(){
   try{
-    const r=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms})});
+    const clientData=collectRadarLocalData();
+    const r=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms,clientData})});
     if(!r.ok)throw new Error("server-save-failed");
     const d=await r.json();
     serverSyncReady=true;
@@ -223,17 +234,45 @@ async function syncServerState(){
     if(!r.ok)throw new Error("Não foi possível carregar os projetos do servidor.");
     const d=await r.json();if(!d?.state)throw new Error("Resposta de armazenamento inválida.");
     const st=d.state;
-    // O servidor é a fonte principal: substitui o cache local para permitir continuar
-    // projetos em outro navegador/dispositivo sem misturar cópias antigas.
+    // O servidor é a fonte compartilhada. Chaves locais ainda não existentes no
+    // servidor são preservadas para migrar dados de versões anteriores.
     const remoteHasData=(Array.isArray(st.sales)&&st.sales.length)||(Array.isArray(st.platforms)&&st.platforms.length);
     const localHasData=sales.length||platforms.length;
+    const mergeRecords=(localRows,remoteRows)=>{
+      const byId=new Map(),remoteById=new Map();let changed=false;
+      for(const item of (Array.isArray(remoteRows)?remoteRows:[])) if(item&&item.id!==undefined){byId.set(String(item.id),item);remoteById.set(String(item.id),item)}
+      for(const item of (Array.isArray(localRows)?localRows:[])) if(item&&item.id!==undefined){
+        const id=String(item.id),remote=remoteById.get(id);
+        if(!remote){byId.set(id,item);changed=true;continue}
+        const localTime=Date.parse(item.updatedAt||item.createdAt||0)||0;
+        const remoteTime=Date.parse(remote.updatedAt||remote.createdAt||0)||0;
+        if(localTime>remoteTime){byId.set(id,item);changed=true}
+      }
+      return {rows:[...byId.values()],changed};
+    };
     if(remoteHasData){
-      if(Array.isArray(st.sales))sales=st.sales;
-      if(Array.isArray(st.platforms))platforms=st.platforms.map(norm);
-    }else if(localHasData){
-      // Migração segura: não descarta projetos locais antigos se o banco remoto estiver vazio.
-      const migrated=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms})});
+      const mergedSales=mergeRecords(sales,st.sales),mergedPlatforms=mergeRecords(platforms,st.platforms);
+      sales=mergedSales.rows;
+      platforms=mergedPlatforms.rows.map(norm);
+      if(mergedSales.changed || mergedPlatforms.changed){
+        const merged=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms})});
+        if(!merged.ok)throw new Error("Não foi possível preservar todos os registros locais durante a sincronização.");
+      }
+    }
+    const remoteLocal=st.clientData&&typeof st.clientData==="object"?st.clientData:{};
+    const localLocal=collectRadarLocalData();
+    const mergedLocal={...localLocal,...remoteLocal};
+    for(const [key,value] of Object.entries(mergedLocal)){
+      try{localStorage.setItem(key,String(value))}catch(err){console.warn("Não foi possível restaurar a chave local",key,err.message)}
+    }
+    // Se o banco ainda não possui dados centrais, migrar o conteúdo local sem
+    // substituir os dados remotos já existentes.
+    if(!remoteHasData&&localHasData){
+      const migrated=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms,clientData:mergedLocal})});
       if(!migrated.ok)throw new Error("O banco remoto está vazio e a migração dos dados locais falhou.");
+    }else if(Object.keys(localLocal).some(k=>!(k in remoteLocal))){
+      const migrated=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({clientData:mergedLocal})});
+      if(!migrated.ok)throw new Error("Não foi possível migrar todos os dados locais para o servidor.");
     }
     localStorage.setItem(SALES_KEY,JSON.stringify(sales));
     localStorage.setItem(KEY,JSON.stringify(platforms));
@@ -241,6 +280,15 @@ async function syncServerState(){
     return true;
   }catch(e){serverSyncReady=false;console.warn("Sincronização do Radar:",e.message);return false}
 }
+let radarLocalSaveTimer=null;
+const radarNativeSetItem=Storage.prototype.setItem;
+Storage.prototype.setItem=function(key,value){
+  radarNativeSetItem.call(this,key,value);
+  if(this===localStorage && typeof key==="string" && key.startsWith("radar") && !key.startsWith("radarAdmin") && key!==KEY && key!==SALES_KEY && serverSyncReady){
+    clearTimeout(radarLocalSaveTimer);
+    radarLocalSaveTimer=setTimeout(()=>persistServerState(),900);
+  }
+};
 function saveSales(){localStorage.setItem(SALES_KEY,JSON.stringify(sales));renderSalesPipeline();persistServerState()}
 function stageIndex(id){return Math.max(0,SALES_STAGES.findIndex(s=>s.id===id))}
 function saleForBusiness(b){if(!b)return null;let x=sales.find(s=>String(s.businessId)===String(b.id)||String(s.name)===String(b.name));if(!x){x={id:crypto.randomUUID(),businessId:b.id,name:b.name,type:b.type,phone:b.phone,whatsapp:b.whatsapp,instagram:b.instagram,address:b.address,stage:"analyze",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),service:null,price:0,domain:"",paymentStatus:"pending",publishedUrl:"",notes:"",analysis:analyze(b)};sales.push(x);saveSales()}return x}
@@ -261,9 +309,9 @@ function guidedAction(s){
 function renderSalesPipeline(){
  const mount=$("salesPipeline");if(!mount)return;
  const current=sales.slice().sort((a,b)=>new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt))[0];
- if(!current){mount.innerHTML=`<div class="guided-head"><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.7.1</span><h2>🚀 Vamos encontrar seu próximo cliente</h2><p>O Radar escolhe uma empresa próxima com bons sinais comerciais, analisa a oportunidade e conduz você por uma etapa de cada vez.</p><button class="primary guided-start" data-guided="start">▶ Começar passo a passo</button><p class="guided-foot">Se ainda não houver resultados, o Radar usará a localização/categoria acima para pesquisar primeiro.</p></div>`;return}
+ if(!current){mount.innerHTML=`<div class="guided-head"><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.0</span><h2>🚀 Vamos encontrar seu próximo cliente</h2><p>O Radar escolhe uma empresa próxima com bons sinais comerciais, analisa a oportunidade e conduz você por uma etapa de cada vez.</p><button class="primary guided-start" data-guided="start">▶ Começar passo a passo</button><p class="guided-foot">Se ainda não houver resultados, o Radar usará a localização/categoria acima para pesquisar primeiro.</p></div>`;return}
  const idx=stageIndex(current.stage),stage=SALES_STAGES[idx],a=current.analysis||{},notes=(a.notes||[]).slice(0,4);
- mount.innerHTML=`<div class="guided-head"><div class="guided-top"><div><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.7.1</span><h2>🚀 Seu próximo passo</h2></div><button class="secondary" data-guided="start">＋ Novo cliente</button></div><div class="guided-progress"><span>Etapa ${idx+1} de ${SALES_STAGES.length}</span><div><i style="width:${Math.round((idx+1)/SALES_STAGES.length*100)}%"></i></div></div><article class="guided-step"><span class="guided-icon">${stage.icon}</span><div class="guided-main"><small>ETAPA ATUAL</small><h3>${esc(stage.label)}</h3><h4>${esc(current.name)}</h4><p>${guidedDescription(current.stage)}</p>${current.stage==="analyze"?`<div class="guided-facts"><b>Oportunidade: ${esc(a.level||"Em análise")} ${a.score!==undefined?`· ${a.score}/4`:""}</b><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}${current.stage==="preview"?`<div class="guided-facts"><b>Estado da demonstração</b><p>Enviada: ${current.demoSentAt?new Date(current.demoSentAt).toLocaleString("pt-BR"):"não registrado"}<br>Visualizada: ${current.demoViewedAt?new Date(current.demoViewedAt).toLocaleString("pt-BR"):"ainda não"}<br>Aprovada: ${current.approvedAt?new Date(current.approvedAt).toLocaleString("pt-BR"):"aguardando cliente"}</p></div>`:""}<div class="guided-actions">${guidedAction(current)}</div><small class="guided-note">${serverSyncReady?"Cadastro sincronizado com o servidor.":"Salvando localmente e tentando sincronizar com o servidor."}</small></div></article><div class="guided-bottom"><b>Cliente acompanhado</b><span>${esc(labels[current.type]||"Negócio")} · ${esc(current.service||"Serviço ainda não escolhido")}</span><button class="secondary" data-guided="details" data-sale="${esc(current.id)}">Ver cadastro e histórico</button>${sales.length>1?`<label>Outro cliente<select id="guidedClientSelect">${sales.map(s=>`<option value="${esc(s.id)}" ${s.id===current.id?"selected":""}>${esc(s.name)} — ${esc(SALES_STAGES[stageIndex(s.stage)].label)}</option>`).join("")}</select></label>`:""}</div></div>`;
+ mount.innerHTML=`<div class="guided-head"><div class="guided-top"><div><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.0</span><h2>🚀 Seu próximo passo</h2></div><button class="secondary" data-guided="start">＋ Novo cliente</button></div><div class="guided-progress"><span>Etapa ${idx+1} de ${SALES_STAGES.length}</span><div><i style="width:${Math.round((idx+1)/SALES_STAGES.length*100)}%"></i></div></div><article class="guided-step"><span class="guided-icon">${stage.icon}</span><div class="guided-main"><small>ETAPA ATUAL</small><h3>${esc(stage.label)}</h3><h4>${esc(current.name)}</h4><p>${guidedDescription(current.stage)}</p>${current.stage==="analyze"?`<div class="guided-facts"><b>Oportunidade: ${esc(a.level||"Em análise")} ${a.score!==undefined?`· ${a.score}/4`:""}</b><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}${current.stage==="preview"?`<div class="guided-facts"><b>Estado da demonstração</b><p>Enviada: ${current.demoSentAt?new Date(current.demoSentAt).toLocaleString("pt-BR"):"não registrado"}<br>Visualizada: ${current.demoViewedAt?new Date(current.demoViewedAt).toLocaleString("pt-BR"):"ainda não"}<br>Aprovada: ${current.approvedAt?new Date(current.approvedAt).toLocaleString("pt-BR"):"aguardando cliente"}</p></div>`:""}<div class="guided-actions">${guidedAction(current)}</div><small class="guided-note">${serverSyncReady?"Cadastro sincronizado com o servidor.":"Salvando localmente e tentando sincronizar com o servidor."}</small></div></article><div class="guided-bottom"><b>Cliente acompanhado</b><span>${esc(labels[current.type]||"Negócio")} · ${esc(current.service||"Serviço ainda não escolhido")}</span><button class="secondary" data-guided="details" data-sale="${esc(current.id)}">Ver cadastro e histórico</button>${sales.length>1?`<label>Outro cliente<select id="guidedClientSelect">${sales.map(s=>`<option value="${esc(s.id)}" ${s.id===current.id?"selected":""}>${esc(s.name)} — ${esc(SALES_STAGES[stageIndex(s.stage)].label)}</option>`).join("")}</select></label>`:""}</div></div>`;
  const sel=mount.querySelector("#guidedClientSelect");if(sel)sel.onchange=()=>{const s=sales.find(x=>x.id===sel.value);if(s){sales=[...sales.filter(x=>x.id!==s.id),s];renderSalesPipeline()}};
 }
 function guidedDescription(id){return ({find:"Vou procurar empresas próximas e priorizar sinais de oportunidade comercial.",analyze:"Revise os sinais encontrados e confirme se faz sentido abordar esta empresa.",approach:"O Radar prepara uma mensagem personalizada. Você revisa antes de abrir o WhatsApp.",demo:"Crie e revise uma demonstração personalizada antes de enviá-la ao cliente.",preview:"A demonstração foi compartilhada. O Radar registra visita e aprovação explícita quando o cliente interage com a página.",approved:"A aprovação do cliente foi registrada. Confira o escopo antes de seguir para pagamento.",paid:"O estado do pagamento está no cadastro comercial. A confirmação automática real será integrada na próxima fase.",production:"O projeto está registrado para produção; publicação automática ainda não foi ativada.",published:"O site está registrado como publicado. A conexão real de hospedagem será integrada na próxima fase.",domain:"A conexão de domínio será tratada na fase de publicação e infraestrutura.",maintenance:"O cliente está na etapa de manutenção; os testes automáticos serão adicionados na próxima fase.",renewal:"A renovação fica registrada para acompanhamento comercial."})[id]||"Continue o processo comercial."}
@@ -409,7 +457,7 @@ function demoLinkFor(p){
 function publicLinkFor(p){ return publicSiteLinkFor(p); }
 function admHeader(){const demo=demoLinkFor(ed);const pub=publicLinkFor(ed);return `<div class="adm-top"><div><span class="eyebrow-ui">🔐 ADM V9</span><strong>${esc(ed.name)}</strong><small>Edite e publique o site do cliente.</small></div><div class="adm-links"><button type="button" class="primary" data-act="open-local-preview">👁️ Abrir prévia</button>${demo?`<button type="button" data-act="open-public-demo">🌐 Abrir demonstração pública</button><button type="button" data-act="send-demo">📨 Enviar ao cliente</button>`:`<button type="button" data-act="open-public-site">🌐 Abrir site público</button>`}<button type="button" data-act="copy-public">📋 Copiar ${demo?"link da demonstração":"link público"}</button></div></div>`}
 function renderTab(){const tabMap={dados:tabDados,manual:tabManual,ia:tabIA,funcoes:tabFuncoes,conteudo:tabConteudo,design:tabDesign,previa:tabPrevia,final:tabFinal};const nav=[["previa","Prévia"],["dados","Informações"],["manual","Edição manual"],["ia","IA e conteúdo"],["conteudo","Seções"],["design","Estilo visual"],["funcoes","Funções"],["final","Publicar"]];$("tabs").innerHTML=nav.map(([k,v])=>`<button type="button" data-act="tab" data-v="${k}" class="${k===tab?"active":""}"><span>${({previa:"▣",dados:"Aa",manual:"✥",ia:"✦",conteudo:"▦",design:"◈",funcoes:"⚙",final:"↗"})[k]}</span>${v}</button>`).join("");$("edBody").innerHTML=(edMode==="adm"&&!editorMode?admHeader():"")+(tabMap[tab]||tabDados)();if(tab==="previa")drawFrame();drawLivePreview()}
-function tabDados(){return`<div class="creator-intro"><div><span class="eyebrow-ui">CRIADOR V21.7.1</span><h3>Monte o site de ${esc(ed.name||"seu negócio")}</h3><p>O Radar gera uma primeira versão visual e conteúdo sugerido. Confirme tudo antes de publicar.</p></div><button type="button" class="primary" data-act="auto">✨ Gerar automaticamente</button></div><h4>1. Nível do site</h4><div class="level-grid">${Object.entries(LEVELS).map(([k,v])=>`<label class="level-card ${ed.level===k?"selected":""}"><input type="radio" name="site-level" data-p="level" value="${k}" ${ed.level===k?"checked":""}><strong>${v.name}</strong><span>${v.desc}</span></label>`).join("")}</div><h4>2. Informações</h4><div class="admin-grid">${sel("type","Tipo",Object.entries(labels))}${inp("name","Nome")}${inp("title","Título principal")}${inp("phone","Telefone")}${inp("whatsapp","WhatsApp")}${inp("instagram","Instagram")}</div>${inp("address","Endereço")}<label>Descrição<textarea data-p="description" rows="3">${esc(ed.description||"")}</textarea></label>`}
+function tabDados(){return`<div class="creator-intro"><div><span class="eyebrow-ui">CRIADOR V21.8.0</span><h3>Monte o site de ${esc(ed.name||"seu negócio")}</h3><p>O Radar gera uma primeira versão visual e conteúdo sugerido. Confirme tudo antes de publicar.</p></div><button type="button" class="primary" data-act="auto">✨ Gerar automaticamente</button></div><h4>1. Nível do site</h4><div class="level-grid">${Object.entries(LEVELS).map(([k,v])=>`<label class="level-card ${ed.level===k?"selected":""}"><input type="radio" name="site-level" data-p="level" value="${k}" ${ed.level===k?"checked":""}><strong>${v.name}</strong><span>${v.desc}</span></label>`).join("")}</div><h4>2. Informações</h4><div class="admin-grid">${sel("type","Tipo",Object.entries(labels))}${inp("name","Nome")}${inp("title","Título principal")}${inp("phone","Telefone")}${inp("whatsapp","WhatsApp")}${inp("instagram","Instagram")}</div>${inp("address","Endereço")}<label>Descrição<textarea data-p="description" rows="3">${esc(ed.description||"")}</textarea></label>`}
 function tabManual(){
  const sections=Array.isArray(ed.sections)?ed.sections:[];
  const range=(key,label,min,max,step=1,unit='px')=>`<label class="manual-range">${label}<output>${Number(ed[key]||0)}${unit}</output><input type="range" min="${min}" max="${max}" step="${step}" data-p="${key}" value="${Number(ed[key]||0)}"></label>`;
