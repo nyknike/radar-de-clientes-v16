@@ -197,3 +197,16 @@ body.visual-editor-mode .status{display:none}
 
 /* V21.5.7 — catálogo de produtos com geração de foto por item */
 .product-editor-list{display:grid;gap:14px}.product-editor-card{display:grid;gap:12px;padding:14px;border:1px solid rgba(128,128,128,.24);border-radius:14px;background:var(--surface,#fff)}.product-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.product-editor-image{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;align-items:center}.product-editor-image .editor-item-thumb{width:100px;height:100px;border-radius:10px}.product-image-placeholder{display:grid;place-items:center;text-align:center;width:100px;height:100px;padding:8px;background:rgba(128,128,128,.12);border:1px dashed rgba(128,128,128,.45);border-radius:10px;font-size:12px}.product-editor-actions{display:grid;gap:8px}.product-editor-actions button,.product-editor-actions label{width:100%;justify-content:center}.product-editor-card>.full{width:100%}@media(max-width:560px){.product-editor-fields{grid-template-columns:1fr}.product-editor-image{grid-template-columns:76px minmax(0,1fr)}.product-editor-image .editor-item-thumb,.product-image-placeholder{width:76px;height:76px}.product-editor-actions button{font-size:13px;padding:10px}}
+
+
+/* V21.8.1 — CTA de prévia com destaque e área de toque ampla */
+.platform .plat-actions{align-items:stretch;gap:9px}
+.platform .plat-actions .public-preview-cta{display:inline-flex;align-items:center;justify-content:center;min-height:48px;min-width:min(100%,190px);padding:12px 18px;background:#176b52;border:2px solid #43c59a;color:#fff;font-size:14px;font-weight:800;line-height:1.2;box-shadow:0 3px 12px rgba(24,190,137,.18);position:relative;z-index:1;touch-action:manipulation}
+.platform .plat-actions .public-preview-cta:hover,.platform .plat-actions .public-preview-cta:focus-visible{background:#218565;outline:3px solid rgba(67,197,154,.28);outline-offset:2px}
+@media(max-width:600px){.platform .plat-actions .public-preview-cta{flex:1 1 100%;width:100%;min-height:52px;font-size:15px}.platform .plat-actions button{min-height:44px}}
+
+/* V21.8.1 — prévia pública sempre acessível no editor */
+#editorDialog .editor-actions .public-preview-main-cta,.visual-custom-panel .public-preview-main-cta{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:11px 17px;background:#176b52;border:2px solid #43c59a;color:#fff;font-size:14px;font-weight:800;line-height:1.25;box-shadow:0 3px 12px rgba(24,190,137,.18);touch-action:manipulation}
+#editorDialog .editor-actions .public-preview-main-cta:hover,.visual-custom-panel .public-preview-main-cta:hover{background:#218565}
+#editorDialog .editor-actions .public-preview-main-cta:focus-visible,.visual-custom-panel .public-preview-main-cta:focus-visible{outline:3px solid rgba(67,197,154,.32);outline-offset:2px}
+@media(max-width:720px){#editorDialog .editor-actions .public-preview-main-cta{flex:1 1 100%;min-height:48px;order:-1}.visual-custom-panel .public-preview-main-cta{width:100%;min-height:50px}}
