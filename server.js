@@ -366,13 +366,13 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.8.1",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.8.2",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.8.1",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.8.2",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -425,6 +425,40 @@ app.get("/api/site/:id", async (req,res)=>{
   res.json({ok:true,kind:"published",platform,sale:null});
 });
 
+app.post("/api/demo/register", adminAuth, async (req,res)=>{
+  if(!await requireStorage(res)) return;
+  const platform=req.body?.platform, sale=req.body?.sale;
+  const html=typeof req.body?.html==="string"?req.body.html:"";
+  const id=String(platform?.id||"").trim();
+  if(!id||id.length>120||!sale||String(sale.platformId||sale.businessId||"")!==id||String(sale.id||"").length>120){
+    return res.status(400).json({ok:false,error:"Projeto ou cadastro da demonstração inválido."});
+  }
+  if(!/^\s*<!doctype html/i.test(html)||Buffer.byteLength(html,"utf8")>4*1024*1024){
+    return res.status(413).json({ok:false,error:"A versão HTML da demonstração está vazia ou ultrapassa 4 MB."});
+  }
+  const previous={sales:state.sales,platforms:state.platforms,publishedSites:state.publishedSites};
+  const savedAt=new Date().toISOString();
+  const cleanSale={...sale,platformId:id,businessId:id,updatedAt:savedAt};
+  const cleanPlatform={...platform,updatedAt:platform.updatedAt||savedAt};
+  const sales=[...state.sales];
+  const saleIndex=sales.findIndex(x=>String(x.id)===String(cleanSale.id));
+  if(saleIndex<0)sales.push(cleanSale);else sales[saleIndex]={...sales[saleIndex],...cleanSale};
+  const platforms=[...state.platforms];
+  const platformIndex=platforms.findIndex(x=>String(x.id)===id);
+  if(platformIndex<0)platforms.push(cleanPlatform);else platforms[platformIndex]=cleanPlatform;
+  const publishedSites=[...state.publishedSites];
+  const publicIndex=publishedSites.findIndex(x=>String(x.id)===id);
+  const publicRecord={...(publicIndex>=0?publishedSites[publicIndex]:{}),id,platform:cleanPlatform,html,updatedAt:savedAt};
+  if(publicIndex<0)publishedSites.push(publicRecord);else publishedSites[publicIndex]=publicRecord;
+  state.sales=sales;state.platforms=platforms;state.publishedSites=publishedSites;
+  if(!await persistState()){
+    state.sales=previous.sales;state.platforms=previous.platforms;state.publishedSites=previous.publishedSites;
+    return res.status(500).json({ok:false,error:"O banco não confirmou a gravação da demonstração. Verifique a conexão persistente e tente novamente.",storage:{connected:storage.connected,detail:storage.error}});
+  }
+  res.setHeader("Cache-Control","no-store");
+  res.json({ok:true,id,url:`/site/${encodeURIComponent(id)}`,savedAt,verified:{sale:true,platform:true,publicHtml:true}});
+});
+
 app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
   if(!await requireStorage(res)) return;
   const id=String(req.params.id||"").trim(), platform=req.body?.platform;
@@ -444,7 +478,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.8.1",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.8.2",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -837,4 +871,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.8.1 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.8.2 em http://localhost:${PORT}`));

@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-// V21.8.1: autenticação administrativa por sessão HttpOnly (senha informada uma vez).
+// V21.8.2: autenticação administrativa por sessão HttpOnly (senha informada uma vez).
 const RADAR_AUTH_KEY="radarAdminTokenSessionV216";
 const radarOriginalFetch=window.fetch.bind(window);
 const radarProtectedPath=path=>/^\/api\/(state(?:$|\?)|demo\/[^/]+(?:$|\?)|public-sites\/|publish\/cloudflare|domain\/connect|ai\/(site-edit|generate-image)|integrations\/test|admin\/)/.test(path);
@@ -31,6 +31,7 @@ let editorMode=new URLSearchParams(location.search).has("editor");
 let results=[],filter="all",here=null,ed=null,edMode="create",tab="dados",dev="mobile",previewId=null,logoURL="/logo.png",regionOpps=[];
 let platforms=[];
 let sales=[],guidedStartPending=false,serverSyncReady=false;
+let serverPersistQueue=Promise.resolve();
 const SALES_STAGES=[
  {id:"find",label:"Encontrar empresa",icon:"🔎"},
  {id:"analyze",label:"Analisar oportunidade",icon:"📊"},
@@ -208,14 +209,19 @@ function collectRadarLocalData(){
   return data;
 }
 async function persistServerState(){
-  try{
-    const clientData=collectRadarLocalData();
-    const r=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms,clientData})});
-    if(!r.ok)throw new Error("server-save-failed");
-    const d=await r.json();
-    serverSyncReady=true;
-    return !!d?.ok;
-  }catch(e){serverSyncReady=false;return false}
+  const run=async()=>{
+    try{
+      const clientData=collectRadarLocalData();
+      const r=await fetch("/api/state",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({sales,platforms,clientData})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok||!d?.ok)throw new Error(d?.error||`Falha HTTP ${r.status} ao salvar no servidor.`);
+      serverSyncReady=true;
+      return true;
+    }catch(e){serverSyncReady=false;console.warn("Falha ao sincronizar Radar:",e.message);return false}
+  };
+  const pending=serverPersistQueue.then(run,run);
+  serverPersistQueue=pending.then(()=>undefined,()=>undefined);
+  return pending;
 }
 async function publishPublicRegistry(p){
   if(!p?.id)return false;
@@ -309,9 +315,9 @@ function guidedAction(s){
 function renderSalesPipeline(){
  const mount=$("salesPipeline");if(!mount)return;
  const current=sales.slice().sort((a,b)=>new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt))[0];
- if(!current){mount.innerHTML=`<div class="guided-head"><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.1</span><h2>🚀 Vamos encontrar seu próximo cliente</h2><p>O Radar escolhe uma empresa próxima com bons sinais comerciais, analisa a oportunidade e conduz você por uma etapa de cada vez.</p><button class="primary guided-start" data-guided="start">▶ Começar passo a passo</button><p class="guided-foot">Se ainda não houver resultados, o Radar usará a localização/categoria acima para pesquisar primeiro.</p></div>`;return}
+ if(!current){mount.innerHTML=`<div class="guided-head"><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.2</span><h2>🚀 Vamos encontrar seu próximo cliente</h2><p>O Radar escolhe uma empresa próxima com bons sinais comerciais, analisa a oportunidade e conduz você por uma etapa de cada vez.</p><button class="primary guided-start" data-guided="start">▶ Começar passo a passo</button><p class="guided-foot">Se ainda não houver resultados, o Radar usará a localização/categoria acima para pesquisar primeiro.</p></div>`;return}
  const idx=stageIndex(current.stage),stage=SALES_STAGES[idx],a=current.analysis||{},notes=(a.notes||[]).slice(0,4);
- mount.innerHTML=`<div class="guided-head"><div class="guided-top"><div><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.1</span><h2>🚀 Seu próximo passo</h2></div><button class="secondary" data-guided="start">＋ Novo cliente</button></div><div class="guided-progress"><span>Etapa ${idx+1} de ${SALES_STAGES.length}</span><div><i style="width:${Math.round((idx+1)/SALES_STAGES.length*100)}%"></i></div></div><article class="guided-step"><span class="guided-icon">${stage.icon}</span><div class="guided-main"><small>ETAPA ATUAL</small><h3>${esc(stage.label)}</h3><h4>${esc(current.name)}</h4><p>${guidedDescription(current.stage)}</p>${current.stage==="analyze"?`<div class="guided-facts"><b>Oportunidade: ${esc(a.level||"Em análise")} ${a.score!==undefined?`· ${a.score}/4`:""}</b><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}${current.stage==="preview"?`<div class="guided-facts"><b>Estado da demonstração</b><p>Enviada: ${current.demoSentAt?new Date(current.demoSentAt).toLocaleString("pt-BR"):"não registrado"}<br>Visualizada: ${current.demoViewedAt?new Date(current.demoViewedAt).toLocaleString("pt-BR"):"ainda não"}<br>Aprovada: ${current.approvedAt?new Date(current.approvedAt).toLocaleString("pt-BR"):"aguardando cliente"}</p></div>`:""}<div class="guided-actions">${guidedAction(current)}</div><small class="guided-note">${serverSyncReady?"Cadastro sincronizado com o servidor.":"Salvando localmente e tentando sincronizar com o servidor."}</small></div></article><div class="guided-bottom"><b>Cliente acompanhado</b><span>${esc(labels[current.type]||"Negócio")} · ${esc(current.service||"Serviço ainda não escolhido")}</span><button class="secondary" data-guided="details" data-sale="${esc(current.id)}">Ver cadastro e histórico</button>${sales.length>1?`<label>Outro cliente<select id="guidedClientSelect">${sales.map(s=>`<option value="${esc(s.id)}" ${s.id===current.id?"selected":""}>${esc(s.name)} — ${esc(SALES_STAGES[stageIndex(s.stage)].label)}</option>`).join("")}</select></label>`:""}</div></div>`;
+ mount.innerHTML=`<div class="guided-head"><div class="guided-top"><div><span class="eyebrow-ui">ASSISTENTE COMERCIAL V21.8.2</span><h2>🚀 Seu próximo passo</h2></div><button class="secondary" data-guided="start">＋ Novo cliente</button></div><div class="guided-progress"><span>Etapa ${idx+1} de ${SALES_STAGES.length}</span><div><i style="width:${Math.round((idx+1)/SALES_STAGES.length*100)}%"></i></div></div><article class="guided-step"><span class="guided-icon">${stage.icon}</span><div class="guided-main"><small>ETAPA ATUAL</small><h3>${esc(stage.label)}</h3><h4>${esc(current.name)}</h4><p>${guidedDescription(current.stage)}</p>${current.stage==="analyze"?`<div class="guided-facts"><b>Oportunidade: ${esc(a.level||"Em análise")} ${a.score!==undefined?`· ${a.score}/4`:""}</b><ul>${notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}${current.stage==="preview"?`<div class="guided-facts"><b>Estado da demonstração</b><p>Enviada: ${current.demoSentAt?new Date(current.demoSentAt).toLocaleString("pt-BR"):"não registrado"}<br>Visualizada: ${current.demoViewedAt?new Date(current.demoViewedAt).toLocaleString("pt-BR"):"ainda não"}<br>Aprovada: ${current.approvedAt?new Date(current.approvedAt).toLocaleString("pt-BR"):"aguardando cliente"}</p></div>`:""}<div class="guided-actions">${guidedAction(current)}</div><small class="guided-note">${serverSyncReady?"Cadastro sincronizado com o servidor.":"Salvando localmente e tentando sincronizar com o servidor."}</small></div></article><div class="guided-bottom"><b>Cliente acompanhado</b><span>${esc(labels[current.type]||"Negócio")} · ${esc(current.service||"Serviço ainda não escolhido")}</span><button class="secondary" data-guided="details" data-sale="${esc(current.id)}">Ver cadastro e histórico</button>${sales.length>1?`<label>Outro cliente<select id="guidedClientSelect">${sales.map(s=>`<option value="${esc(s.id)}" ${s.id===current.id?"selected":""}>${esc(s.name)} — ${esc(SALES_STAGES[stageIndex(s.stage)].label)}</option>`).join("")}</select></label>`:""}</div></div>`;
  const sel=mount.querySelector("#guidedClientSelect");if(sel)sel.onchange=()=>{const s=sales.find(x=>x.id===sel.value);if(s){sales=[...sales.filter(x=>x.id!==s.id),s];renderSalesPipeline()}};
 }
 function guidedDescription(id){return ({find:"Vou procurar empresas próximas e priorizar sinais de oportunidade comercial.",analyze:"Revise os sinais encontrados e confirme se faz sentido abordar esta empresa.",approach:"O Radar prepara uma mensagem personalizada. Você revisa antes de abrir o WhatsApp.",demo:"Crie e revise uma demonstração personalizada antes de enviá-la ao cliente.",preview:"A demonstração foi compartilhada. O Radar registra visita e aprovação explícita quando o cliente interage com a página.",approved:"A aprovação do cliente foi registrada. Confira o escopo antes de seguir para pagamento.",paid:"O estado do pagamento está no cadastro comercial. A confirmação automática real será integrada na próxima fase.",production:"O projeto está registrado para produção; publicação automática ainda não foi ativada.",published:"O site está registrado como publicado. A conexão real de hospedagem será integrada na próxima fase.",domain:"A conexão de domínio será tratada na fase de publicação e infraestrutura.",maintenance:"O cliente está na etapa de manutenção; os testes automáticos serão adicionados na próxima fase.",renewal:"A renovação fica registrada para acompanhamento comercial."})[id]||"Continue o processo comercial."}
@@ -372,9 +378,11 @@ function siteHTML(p){
  const navKeys=["about","items","offers","gallery","team","reviews","faq","location","contact"].filter(function(k){return enabled.has(k)});
  const anchor=function(k){return k==="about"?"sobre":k==="items"?(T.kind.toLowerCase().includes("serv")?"servicos":"cardapio"):k};
  const extraNav=moduleOn(p,"deliveryMode")?'<a href="#cardapio">Cardápio e pedidos</a>':(moduleOn(p,"orders")?'<a href="#pedido">Pedir</a>':"");
- const hasPublicBooking=moduleOn(p,"booking")||moduleOn(p,"reservations");
+ const bookingTypes=["restaurant","pizza","fast_food","barber","salon","pet","gym","clinic","hotel","car_repair"];
+ const hasPublicBooking=moduleOn(p,"booking")||moduleOn(p,"reservations")||bookingTypes.includes(String(p.type||"").toLowerCase());
+ const publicReservation=moduleOn(p,"reservations")||["restaurant","pizza","fast_food"].includes(String(p.type||"").toLowerCase());
  const nav=(p.level==="essential"&&!hasPublicBooking&&!moduleOn(p,"orders"))?"":'<nav class="nav"><a class="brand wordmark" href="#top"><span>'+esc(p.name)+'</span></a>'+
-   navKeys.slice(0,5).map(function(k){return '<a href="#'+anchor(k)+'">'+esc(SECTIONS[k])+'</a>'}).join("")+extraNav+(hasPublicBooking?'<a class="btn booking-open" href="?agendamento=1">'+(moduleOn(p,"reservations")?'Fazer reserva':'Agendar horário')+'</a>':"")+
+   navKeys.slice(0,5).map(function(k){return '<a href="#'+anchor(k)+'">'+esc(SECTIONS[k])+'</a>'}).join("")+extraNav+(hasPublicBooking?'<a class="btn booking-open" href="?agendamento=1">'+(publicReservation?'Fazer reserva':'Agendar horário')+'</a>':"")+
    (p.whatsapp?'<a class="btn" href="'+esc(wa(p.whatsapp))+'" target="_blank">'+(["barber","salon","pet","car_repair"].includes(p.type)?"Agendar":"Pedir agora")+'</a>':"")+'</nav>';
  const cta=p.whatsapp?'<a class="btn" href="'+esc(wa(p.whatsapp))+'" target="_blank">'+(["barber","salon","pet","car_repair"].includes(p.type)?"Falar / agendar pelo WhatsApp":"Pedir pelo WhatsApp")+'</a>':"";
  const bg=(p.banner||visuals[0])?' style="background-image:url(\''+esc(p.banner||imgs[0])+'\')"':"";
@@ -397,8 +405,9 @@ function siteHTML(p){
 }
 const fullDoc=function(p){
  const name=String(p.name||"").replace(/[^\wÀ-ÿ ]/g,""), waNum=JSON.stringify(p.whatsapp||""), siteId=JSON.stringify(String(p.id||""));
- const hasBooking=moduleOn(p,"booking")||moduleOn(p,"reservations");
- const isReservation=moduleOn(p,"reservations");
+ const bookingTypes=["restaurant","pizza","fast_food","barber","salon","pet","gym","clinic","hotel","car_repair"];
+ const hasBooking=moduleOn(p,"booking")||moduleOn(p,"reservations")||bookingTypes.includes(String(p.type||"").toLowerCase());
+ const isReservation=moduleOn(p,"reservations")||["restaurant","pizza","fast_food"].includes(String(p.type||"").toLowerCase());
  const serviceList=(p.services&&p.services.length?p.services:p.items||[]).map(x=>'<option value="'+esc(x.name||"")+'">'+esc(x.name||"")+(x.price?' — '+esc(money(x.price)):"")+'</option>').join("");
  const staffList=(p.staff||[]).map(x=>'<option value="'+esc(x.name||"")+'">'+esc(x.name||"")+'</option>').join("");
  const bookingDialog=hasBooking?'<div class="booking-dialog" id="bookingDialog" role="dialog" aria-modal="true" aria-labelledby="bookingHeading"><div class="booking-sheet"><div class="booking-close"><button type="button" data-close-booking="1">← Voltar ao site</button></div><h1 class="booking-heading" id="bookingHeading">'+(isReservation?'Para fazer sua reserva, preencha as informações abaixo':'Para solicitar seu agendamento, preencha as informações abaixo')+'</h1><form class="booking-form-public" id="publicBookingForm"><input name="name" placeholder="Nome completo" autocomplete="name" required><input name="contact" placeholder="Telefone / WhatsApp" autocomplete="tel" required><input name="email" type="email" placeholder="E-mail (opcional)" autocomplete="email"><label>'+(isReservation?'Data da reserva':'Data desejada')+'</label><input name="date" type="date" required min="'+new Date().toISOString().slice(0,10)+'"><label>'+(isReservation?'Horário desejado':'Horário desejado')+'</label><select name="time" required><option value="">Selecione um horário</option>'+["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"].map(x=>'<option value="'+x+'">'+x+'</option>').join("")+'</select>'+(isReservation?'<input name="people" type="number" min="1" max="30" value="2" placeholder="Quantidade de pessoas" required>':'<select name="service" required><option value="">Escolha o serviço</option>'+serviceList+'</select><select name="professional"><option value="">Qualquer profissional</option>'+staffList+'</select>')+'<label>Data de aniversário (opcional)</label><input name="birthday" type="date"><textarea name="dietaryRestrictions" placeholder="Restrições alimentares (opcional)"></textarea><textarea name="notes" placeholder="Observações (opcional)"></textarea><label class="booking-consent"><input name="consent" type="checkbox" required><span>Li e concordo com o uso das informações para tratar esta solicitação de '+(isReservation?'reserva':'agendamento')+'.</span></label><button class="booking-submit" type="submit">Enviar solicitação</button><div class="booking-status" id="bookingStatus" role="status"></div><p style="font-size:12px;opacity:.75">Sua solicitação ficará pendente até o estabelecimento confirmar a disponibilidade.</p></form></div></div>':'';
@@ -457,7 +466,7 @@ function demoLinkFor(p){
 function publicLinkFor(p){ return publicSiteLinkFor(p); }
 function admHeader(){const demo=demoLinkFor(ed);const pub=publicLinkFor(ed);return `<div class="adm-top"><div><span class="eyebrow-ui">🔐 ADM V9</span><strong>${esc(ed.name)}</strong><small>Edite e publique o site do cliente.</small></div><div class="adm-links"><button type="button" class="primary" data-act="open-local-preview">👁️ Abrir prévia</button>${demo?`<button type="button" data-act="open-public-demo">🌐 Abrir demonstração pública</button><button type="button" data-act="send-demo">📨 Enviar ao cliente</button>`:`<button type="button" data-act="open-public-site">🌐 Abrir site público</button>`}<button type="button" data-act="copy-public">📋 Copiar ${demo?"link da demonstração":"link público"}</button></div></div>`}
 function renderTab(){const tabMap={dados:tabDados,manual:tabManual,ia:tabIA,funcoes:tabFuncoes,conteudo:tabConteudo,design:tabDesign,previa:tabPrevia,final:tabFinal};const nav=[["previa","Prévia"],["dados","Informações"],["manual","Edição manual"],["ia","IA e conteúdo"],["conteudo","Seções"],["design","Estilo visual"],["funcoes","Funções"],["final","Publicar"]];$("tabs").innerHTML=nav.map(([k,v])=>`<button type="button" data-act="tab" data-v="${k}" class="${k===tab?"active":""}"><span>${({previa:"▣",dados:"Aa",manual:"✥",ia:"✦",conteudo:"▦",design:"◈",funcoes:"⚙",final:"↗"})[k]}</span>${v}</button>`).join("");$("edBody").innerHTML=(edMode==="adm"&&!editorMode?admHeader():"")+(tabMap[tab]||tabDados)();if(tab==="previa")drawFrame();drawLivePreview()}
-function tabDados(){return`<div class="creator-intro"><div><span class="eyebrow-ui">CRIADOR V21.8.1</span><h3>Monte o site de ${esc(ed.name||"seu negócio")}</h3><p>O Radar gera uma primeira versão visual e conteúdo sugerido. Confirme tudo antes de publicar.</p></div><button type="button" class="primary" data-act="auto">✨ Gerar automaticamente</button></div><h4>1. Nível do site</h4><div class="level-grid">${Object.entries(LEVELS).map(([k,v])=>`<label class="level-card ${ed.level===k?"selected":""}"><input type="radio" name="site-level" data-p="level" value="${k}" ${ed.level===k?"checked":""}><strong>${v.name}</strong><span>${v.desc}</span></label>`).join("")}</div><h4>2. Informações</h4><div class="admin-grid">${sel("type","Tipo",Object.entries(labels))}${inp("name","Nome")}${inp("title","Título principal")}${inp("phone","Telefone")}${inp("whatsapp","WhatsApp")}${inp("instagram","Instagram")}</div>${inp("address","Endereço")}<label>Descrição<textarea data-p="description" rows="3">${esc(ed.description||"")}</textarea></label>`}
+function tabDados(){return`<div class="creator-intro"><div><span class="eyebrow-ui">CRIADOR V21.8.2</span><h3>Monte o site de ${esc(ed.name||"seu negócio")}</h3><p>O Radar gera uma primeira versão visual e conteúdo sugerido. Confirme tudo antes de publicar.</p></div><button type="button" class="primary" data-act="auto">✨ Gerar automaticamente</button></div><h4>1. Nível do site</h4><div class="level-grid">${Object.entries(LEVELS).map(([k,v])=>`<label class="level-card ${ed.level===k?"selected":""}"><input type="radio" name="site-level" data-p="level" value="${k}" ${ed.level===k?"checked":""}><strong>${v.name}</strong><span>${v.desc}</span></label>`).join("")}</div><h4>2. Informações</h4><div class="admin-grid">${sel("type","Tipo",Object.entries(labels))}${inp("name","Nome")}${inp("title","Título principal")}${inp("phone","Telefone")}${inp("whatsapp","WhatsApp")}${inp("instagram","Instagram")}</div>${inp("address","Endereço")}<label>Descrição<textarea data-p="description" rows="3">${esc(ed.description||"")}</textarea></label>`}
 function tabManual(){
  const sections=Array.isArray(ed.sections)?ed.sections:[];
  const range=(key,label,min,max,step=1,unit='px')=>`<label class="manual-range">${label}<output>${Number(ed[key]||0)}${unit}</output><input type="range" min="${min}" max="${max}" step="${step}" data-p="${key}" value="${Number(ed[key]||0)}"></label>`;
@@ -623,27 +632,45 @@ async function sendDemo(id){
   if(!p){alert("Salve a demonstração antes de enviar.");return}
   let sale=sales.find(s=>String(s.platformId||s.businessId)===String(p.id)||s.name===p.name);
   if(!sale){sale={id:crypto.randomUUID(),name:p.name,type:p.type,phone:p.phone,whatsapp:p.whatsapp,stage:"demo",createdAt:new Date().toISOString(),service:"Site profissional",price:0,paymentStatus:"pending"};sales.push(sale)}
-  sale.platformId=p.id;sale.businessId=p.id;sale.name=p.name;sale.type=p.type;sale.phone=sale.phone||p.phone;sale.whatsapp=sale.whatsapp||p.whatsapp;sale.stage="preview";sale.demoSentAt=new Date().toISOString();sale.demoViewedAt=null;sale.approvedAt=null;
-  const url=await makeCompactSiteLink(p,sale.id);
-  sale.publishedUrl=url;sale.updatedAt=new Date().toISOString();saveSales();
-  const saved=await persistServerState();
-  if(!saved){
-    alert("Não foi possível confirmar o salvamento dos dados no servidor. O link não será enviado.");
+  sale.platformId=p.id;sale.businessId=p.id;sale.name=p.name;sale.type=p.type;sale.phone=sale.phone||p.phone;sale.whatsapp=sale.whatsapp||p.whatsapp;sale.stage="preview";sale.demoSentAt=new Date().toISOString();sale.demoViewedAt=null;sale.approvedAt=null;sale.updatedAt=new Date().toISOString();
+  const url=publicSiteLinkFor(p);
+  sale.publishedUrl=url;
+  // Aguarda gravações anteriores para impedir que uma sincronização antiga sobrescreva
+  // a demonstração recém-registrada no banco.
+  await serverPersistQueue;
+  let response,data;
+  try{
+    const snapshot=norm(JSON.parse(JSON.stringify(p)));
+    response=await fetch("/api/demo/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({platform:snapshot,sale,html:fullDoc(snapshot)})});
+    data=await response.json().catch(()=>({}));
+  }catch(error){
+    alert(`Não foi possível conectar ao servidor para salvar a demonstração. O link não foi enviado.\n\nDetalhe: ${String(error.message||error)}`);
     return;
   }
-  const registered=await publishPublicRegistry(p);
-  if(!registered){
-    alert("O servidor não confirmou o registro público deste site. O link não será enviado para evitar Not Found.");
+  if(!response.ok||!data?.ok){
+    alert(`O servidor não confirmou o salvamento da demonstração. O link não foi enviado.\n\nDetalhe: ${data?.error||`HTTP ${response.status}`}${data?.storage?.detail?`\nArmazenamento: ${data.storage.detail}`:""}`);
     return;
   }
+  try{
+    const check=await fetch(`/api/site/${encodeURIComponent(String(p.id))}`,{cache:"no-store"});
+    const publicData=await check.json().catch(()=>({}));
+    if(!check.ok||!publicData?.platform||String(publicData.platform.id)!==String(p.id))throw new Error(publicData?.error||`HTTP ${check.status}`);
+  }catch(error){
+    alert(`A demonstração foi gravada, mas o Radar não conseguiu validar o link público. O link não foi enviado.\n\nDetalhe: ${String(error.message||error)}`);
+    return;
+  }
+  localStorage.setItem(SALES_KEY,JSON.stringify(sales));
+  serverSyncReady=true;renderSalesPipeline();
   let number=phoneDigits(sale.whatsapp||sale.phone||"");if(number.length===10||number.length===11)number="55"+number;
   const message=`Olá! Preparei uma demonstração personalizada para ${p.name}. Você pode visualizar o site neste link: ${url}\n\nQuando puder, veja a proposta e me diga o que achou. O botão de aprovação fica na própria página.`;
-  let popup=null;if(number)popup=window.open("about:blank","_blank");copy(url);
-  if(number){const waUrl=`https://wa.me/${number}?text=${encodeURIComponent(message)}`;if(popup)popup.location.href=waUrl;else location.href=waUrl;if(popup)alert("A demonstração foi salva no servidor e o WhatsApp foi aberto com a mensagem e o link do site criado. Confira a conversa e toque em Enviar.")}
-  else{if(popup)popup.close();alert("A demonstração foi salva no servidor e o link foi copiado.\n\nLink da demonstração: "+url+"\n\nMensagem sugerida:\n"+message)}
-  renderSalesPipeline();
+  copy(url);
+  if(number){
+    const waUrl=`https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+    const popup=window.open(waUrl,"_blank","noopener");
+    if(!popup)alert(`A demonstração foi salva e o link foi copiado. O navegador bloqueou a abertura automática do WhatsApp.\n\nLink: ${url}`);
+    else alert("Demonstração salva e link validado. Confira a conversa do WhatsApp e toque em Enviar.");
+  }else alert(`Demonstração salva e link validado. O link foi copiado.\n\n${url}\n\nMensagem sugerida:\n${message}`);
 }
-async function refreshDemoStatus(id){try{const r=await fetch(`/api/demo/${encodeURIComponent(id)}`);const d=await r.json();if(!r.ok)throw new Error(d.error||"Não foi possível consultar o servidor.");const i=sales.findIndex(s=>String(s.id)===String(id));if(i>=0){sales[i]={...sales[i],...d.sale};saveSales()}alert(`Demonstração: ${d.sale.demoViewedAt?"visualizada":"ainda não visualizada"}. ${d.sale.approvedAt?"Cliente aprovou.":"Aprovação ainda pendente."}`)}catch(e){alert("Não foi possível atualizar agora. Verifique se o backend está publicado e tente novamente.")}}
 function copy(t){if(navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{})}
 async function publish(id){
  const p=platforms.find(x=>String(x.id)===String(id));if(!p)return false;

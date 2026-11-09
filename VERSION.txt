@@ -1,3 +1,3 @@
 RADAR DE CLIENTES
-Versão: V21.8.1
-Data do pacote: 2026-11-08
+Versão: V21.8.2
+Data do pacote: 2026-11-09

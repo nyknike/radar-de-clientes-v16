@@ -1,6 +1,6 @@
 {
   "name": "radar-de-clientes-backend",
-  "version": "21.8.1",
+  "version": "21.8.2",
   "private": true,
   "type": "module",
   "scripts": {
