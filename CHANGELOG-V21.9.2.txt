@@ -1,0 +1,10 @@
+RADAR V21.9.2 — CORREÇÃO DE DEPLOY
+
+- Incluído lib/site-builder.js, módulo que estava ausente e causava ERR_MODULE_NOT_FOUND no Render.
+- Exportada normalizeGeneratedSite() para validar e normalizar os dados estruturados gerados pela IA.
+- Sanitização de texto, validação de cores, estilos, seções e itens; nenhum HTML/JS do modelo é executado.
+- Import explícito do módulo no server.js para detectar a dependência durante a inicialização.
+- Número da versão atualizado para V21.9.2.
+- Integrações existentes e configurações foram mantidas; nenhuma credencial foi adicionada.
+
+NOTA: este pacote não foi implantado no Render. Testes locais não substituem uma validação com as APIs reais.

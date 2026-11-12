@@ -1,20 +1,8 @@
-RADAR V21.9.0 — CRIADOR DE SITES COM IA (BASE FUNCIONAL)
-
-Adicionado:
-- Formulário no painel para criar site a partir da descrição do negócio.
-- Endpoint protegido /api/ai/site-create usando OPENROUTER_API_KEY e OPENROUTER_MODEL existentes.
-- Saída estruturada validada; nenhum HTML/CSS/JS gerado pela IA é executado.
-- Projeto no formato nativo do Radar, com textos, itens sem preços inventados, FAQ e configuração visual.
-- Imagens da coleção de banco já existente atribuídas à capa e galeria.
-- Biblioteca de mídia por projeto; imagens geradas pelo Workers AI são registradas e podem ser aplicadas à capa/galeria.
-- Editor visual e edição conversacional existentes preservados.
-- Renderização dos textos de apresentação, destaque e FAQ gerados.
-
-Integrações preservadas: Supabase, OpenRouter, Cloudflare Pages, Workers AI e Mercado Pago. Nenhuma chave nova.
-
-Limites conhecidos:
-- As imagens de banco são da coleção já existente; não há busca web em tempo real nesta versão.
-- Imagens originais dependem da configuração e permissões existentes do Workers AI.
-- O resultado é um site completo de uma página com seções; múltiplas páginas independentes ainda não foram implementadas.
-- Histórico de versões ainda não implementado.
-- É necessário testar com chaves e banco reais antes de produção.
+V21.9.2
+- Adicionada interface própria para o Criador de Sites com IA.
+- Adicionada rota POST /api/ai/site-create protegida por adminAuth.
+- Geração estruturada compatível com o projeto/editor atual.
+- Adicionada validação de campos, cores, seções e itens retornados pela IA.
+- Adicionado limite de requisições para criação de sites.
+- Atualizados indicadores de versão e cache para V21.9.2.
+- Mantidas as integrações e rotas anteriores.

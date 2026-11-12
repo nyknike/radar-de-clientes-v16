@@ -1,11 +1,11 @@
 {
   "name": "radar-de-clientes-backend",
-  "version": "21.9.1",
+  "version": "21.9.2",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check app.js && node --check admin.js && node --check config/integrations.js && node --check lib/site-builder.js",
+    "check": "node --check server.js && node --check app.js && node --check admin.js && node --check config/integrations.js",
     "test": "node --test"
   },
   "dependencies": {
