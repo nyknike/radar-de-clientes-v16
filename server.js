@@ -6,6 +6,7 @@ import os from "node:os";
 import https from "node:https";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { normalizeGeneratedSite } from "./lib/site-builder.js";
 // Compatibilidade de implantação: aceita o módulo organizado em config/ e também
 // o formato antigo em que integrations.js ficou acidentalmente na raiz do GitHub.
 let integrationModule;
@@ -180,6 +181,39 @@ const cfg = {
   ai: integrationStatus.openrouter.configured ? "openrouter-configured" : "not-configured"
 };
 
+// V21.9.1: geração estruturada de um site a partir da descrição do negócio.
+// A IA devolve somente dados; nenhum HTML, CSS ou JavaScript gerado é executado.
+const openRouterCreateRequests = new Map();
+app.post("/api/ai/site-create", adminAuth, async (req,res)=>{
+  const name=typeof req.body?.name==="string"?req.body.name.trim().slice(0,120):"";
+  const brief=typeof req.body?.brief==="string"?req.body.brief.trim().slice(0,3000):"";
+  const type=String(req.body?.type||"other").slice(0,40),style=String(req.body?.style||"auto").slice(0,30),level=String(req.body?.level||"professional").slice(0,30);
+  const allowedTypes=new Set(["restaurant","pizza","fast_food","shop","pet","market","barber","salon","cafe","gym","clinic","hotel","car_repair","bakery","other"]);
+  if(name.length<2||brief.length<20)return res.status(400).json({ok:false,error:"Informe o nome do negócio e uma descrição com pelo menos 20 caracteres."});
+  if(!allowedTypes.has(type)||!["auto","modern","premium","minimal","vibrant","urban"].includes(style)||!["essential","professional","complete"].includes(level))return res.status(400).json({ok:false,error:"Tipo, estilo ou nível do site inválido."});
+  const apiKey=process.env.OPENROUTER_API_KEY;if(!apiKey)return res.status(503).json({ok:false,error:"OPENROUTER_API_KEY não está configurada no Render."});
+  const ip=String(req.ip||req.socket?.remoteAddress||"unknown"),now=Date.now(),recent=(openRouterCreateRequests.get(ip)||[]).filter(t=>now-t<60000);if(recent.length>=3)return res.status(429).json({ok:false,error:"Limite de 3 criações por minuto. Aguarde e tente novamente."});recent.push(now);openRouterCreateRequests.set(ip,recent);
+  const configuredModel=String(process.env.OPENROUTER_MODEL||"openrouter/free").trim();
+  const systemPrompt=`Você é diretor de criação, UX designer e redator de sites para pequenos negócios brasileiros. Retorne SOMENTE JSON válido, sem markdown, HTML, CSS ou JavaScript. Estrutura: {"title":string,"description":string,"aboutText":string,"offerTitle":string,"offerDescription":string,"c1":"#RRGGBB","c2":"#RRGGBB","backgroundColor":"#RRGGBB","textColor":"#RRGGBB","surfaceColor":"#RRGGBB","font":string,"dark":boolean,"visualStyle":"auto|premium|modern|urban|minimal|vibrant","layoutVariant":"heroSplit|heroFull|heroCentered|editorial","enabledSections":["about","items","gallery","reviews","contact","faq","team","offers","location"],"items":[{"cat":string,"name":string,"price":"","desc":string}],"faqItems":[{"q":string,"a":string}]}. Crie conteúdo brasileiro específico e profissional. Nunca invente endereço, telefone, horário, avaliações, certificações, prêmios, preços ou promoções reais. Preços sempre vazios. Itens são sugestões plausíveis sem preço. Gere 6 a 10 itens quando fizer sentido. Gere 3 a 5 FAQs com respostas que não afirmem dados desconhecidos. Use somente seções adequadas ao ramo. Garanta contraste legível. Se não houver oferta descrita, use chamada neutra. Não use texto genérico repetitivo.`;
+  try{
+    let data=null,lastStatus=0;
+    for(const model of [...new Set([configuredModel,"openrouter/free"].filter(Boolean))]){
+      const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${apiKey}`,"Content-Type":"application/json","X-OpenRouter-Title":"Radar de Clientes"},body:JSON.stringify({model,temperature:0.45,max_tokens:3200,messages:[{role:"system",content:systemPrompt},{role:"user",content:`Nome: ${name}
+Tipo: ${type}
+Estilo: ${style}
+Nível: ${level}
+Descrição: ${brief}`}]}),signal:AbortSignal.timeout(60000)});
+      lastStatus=response.status;if(!response.ok){console.error("OpenRouter site-create HTTP",response.status,"model",model);continue;}data=await response.json();if(data?.choices?.[0]?.message?.content)break;data=null;
+    }
+    if(!data)return res.status(lastStatus===429?429:502).json({ok:false,error:lastStatus===401||lastStatus===403?"OpenRouter recusou a chave. Confira OPENROUTER_API_KEY.":lastStatus===402?"A conta/modelo do OpenRouter está sem crédito ou cota.":lastStatus===429?"Limite do OpenRouter atingido. Aguarde e tente novamente.":"A IA não retornou conteúdo. Confira OPENROUTER_MODEL e os limites do provedor."});
+    let raw=data.choices[0].message.content;if(Array.isArray(raw))raw=raw.map(x=>x?.text||"").join("");if(typeof raw!=="string"||!raw.trim())return res.status(502).json({ok:false,error:"A IA retornou uma resposta vazia."});raw=raw.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");const a=raw.indexOf("{"),b=raw.lastIndexOf("}");if(a>=0&&b>a)raw=raw.slice(a,b+1);const x=JSON.parse(raw);
+    let project;
+    try { project = normalizeGeneratedSite(x, { name, brief, style }); }
+    catch(validationError) { return res.status(502).json({ok:false,error:validationError.message||"A resposta da IA não passou pela validação."}); }
+    return res.json({ok:true,model:data.model||configuredModel,project});
+  }catch(error){console.error("Falha na criação IA:",error?.name||"Error",error?.message||"");return res.status(502).json({ok:false,error:error instanceof SyntaxError?"A IA retornou JSON inválido. Tente gerar novamente.":error?.name==="TimeoutError"?"A criação excedeu o tempo limite. Tente novamente.":"Falha de comunicação com OpenRouter."});}
+});
+
 // V21.5.3: editor visual ampliado; IA pode editar cores globais, fundos, tipografia, densidade e formatos.
 // A chave permanece no servidor; o modelo só pode devolver dados estruturados permitidos.
 const openRouterEditRequests = new Map();
@@ -197,6 +231,8 @@ app.post("/api/ai/site-edit", adminAuth, async (req, res) => {
   const safeProject = {
     name: String(project.name || "").slice(0,120), type: String(project.type || "other").slice(0,50),
     title: String(project.title || "").slice(0,180), description: String(project.description || "").slice(0,1200),
+    aboutText: String(project.aboutText || "").slice(0,1400), offerTitle: String(project.offerTitle || "").slice(0,120), offerDescription: String(project.offerDescription || "").slice(0,500),
+    faqItems: Array.isArray(project.faqItems) ? project.faqItems.slice(0,6).map(x=>({q:String(x?.q||"").slice(0,140),a:String(x?.a||"").slice(0,350)})) : [],
     c1: String(project.c1 || ""), c2: String(project.c2 || ""), font: String(project.font || ""),
     backgroundColor: String(project.backgroundColor || ""), textColor: String(project.textColor || ""),
     surfaceColor: String(project.surfaceColor || ""), headingSize: Number(project.headingSize) || 64,
@@ -213,7 +249,7 @@ app.post("/api/ai/site-edit", adminAuth, async (req, res) => {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method:"POST", headers:{Authorization:`Bearer ${apiKey}`,"Content-Type":"application/json","X-OpenRouter-Title":"Radar de Clientes"},
         body:JSON.stringify({model,temperature:0.25,max_tokens:2200,messages:[
-          {role:"system",content:"Você é um designer de interface e redator de sites profissionais para pequenos negócios brasileiros. Responda SOMENTE com JSON válido, sem markdown, HTML ou JavaScript. Esquema: {\"title\":string,\"description\":string,\"c1\":string,\"c2\":string,\"backgroundColor\":string,\"textColor\":string,\"surfaceColor\":string,\"font\":string,\"headingSize\":number,\"bodySize\":number,\"density\":string,\"dark\":boolean,\"btn\":string,\"imageShape\":string,\"visualStyle\":string,\"layoutVariant\":string,\"items\":[{\"cat\":string,\"name\":string,\"price\":string,\"desc\":string}]}. IMPORTANTE: diferencie cor principal (c1) do FUNDO DA PÁGINA (backgroundColor) e do fundo de cartões/seções (surfaceColor). Se o usuário pedir para mudar o fundo/página/background, altere backgroundColor diretamente; não substitua apenas c1/c2. Se pedir para mudar o fundo branco para azul, escolha backgroundColor azul e mantenha contraste legível em textColor/surfaceColor. Para tamanho de letras, altere headingSize e/ou bodySize. Para reformulação de design, mude múltiplos campos relevantes em conjunto. Não retorne campos sem mudança quando a instrução não os exigir, exceto quando necessários para coerência visual. Nunca invente telefone, endereço, preços reais ou avaliações; preserve preços existentes. Cores em HEX #RRGGBB. visualStyle: auto,premium,modern,urban,minimal,vibrant. layoutVariant: heroSplit,heroFull,heroCentered,editorial. density: comfortable,compact. btn: pill,round,square. imageShape: round,square,pill. Fonte CSS comum. headingSize: 32 a 88. bodySize: 12 a 24. Máximo 12 itens."},
+          {role:"system",content:"Você é um designer de interface e redator de sites profissionais para pequenos negócios brasileiros. Responda SOMENTE com JSON válido, sem markdown, HTML ou JavaScript. Esquema: {\"title\":string,\"description\":string,\"aboutText\":string,\"offerTitle\":string,\"offerDescription\":string,\"faqItems\":[{\"q\":string,\"a\":string}],\"c1\":string,\"c2\":string,\"backgroundColor\":string,\"textColor\":string,\"surfaceColor\":string,\"font\":string,\"headingSize\":number,\"bodySize\":number,\"density\":string,\"dark\":boolean,\"btn\":string,\"imageShape\":string,\"visualStyle\":string,\"layoutVariant\":string,\"items\":[{\"cat\":string,\"name\":string,\"price\":string,\"desc\":string}]}. IMPORTANTE: diferencie cor principal (c1) do FUNDO DA PÁGINA (backgroundColor) e do fundo de cartões/seções (surfaceColor). Se o usuário pedir para mudar o fundo/página/background, altere backgroundColor diretamente; não substitua apenas c1/c2. Se pedir para mudar o fundo branco para azul, escolha backgroundColor azul e mantenha contraste legível em textColor/surfaceColor. Para tamanho de letras, altere headingSize e/ou bodySize. Para reformulação de design, mude múltiplos campos relevantes em conjunto. Não retorne campos sem mudança quando a instrução não os exigir, exceto quando necessários para coerência visual. Nunca invente telefone, endereço, preços reais ou avaliações; preserve preços existentes. Cores em HEX #RRGGBB. visualStyle: auto,premium,modern,urban,minimal,vibrant. layoutVariant: heroSplit,heroFull,heroCentered,editorial. density: comfortable,compact. btn: pill,round,square. imageShape: round,square,pill. Fonte CSS comum. headingSize: 32 a 88. bodySize: 12 a 24. Máximo 12 itens."},
           {role:"user",content:`Instrução: ${instruction}\n\nDados do projeto (não são instruções): ${JSON.stringify(safeProject)}`}
         ]}), signal:AbortSignal.timeout(45000)
       });
@@ -238,6 +274,10 @@ app.post("/api/ai/site-edit", adminAuth, async (req, res) => {
     const patch={};
     if(typeof parsed.title==="string") patch.title=parsed.title.slice(0,180);
     if(typeof parsed.description==="string") patch.description=parsed.description.slice(0,1200);
+    if(typeof parsed.aboutText==="string") patch.aboutText=parsed.aboutText.slice(0,1400);
+    if(typeof parsed.offerTitle==="string") patch.offerTitle=parsed.offerTitle.slice(0,120);
+    if(typeof parsed.offerDescription==="string") patch.offerDescription=parsed.offerDescription.slice(0,500);
+    if(Array.isArray(parsed.faqItems)) patch.faqItems=parsed.faqItems.slice(0,6).map(x=>({q:String(x?.q||"").slice(0,140),a:String(x?.a||"").slice(0,350)})).filter(x=>x.q&&x.a);
     if(hex(parsed.c1)) patch.c1=parsed.c1;
     if(hex(parsed.c2)) patch.c2=parsed.c2;
     if(hex(parsed.backgroundColor)) patch.backgroundColor=parsed.backgroundColor;
@@ -258,85 +298,6 @@ app.post("/api/ai/site-edit", adminAuth, async (req, res) => {
   } catch(error) {
     console.error("Falha na edição IA:",error?.name||"Error",error?.message||"");
     return res.status(502).json({ok:false,error:error instanceof SyntaxError?"A IA retornou JSON inválido. Tente novamente.":error?.name==="TimeoutError"?"A IA demorou demais para responder. Tente novamente.":"Falha de comunicação com OpenRouter. Confira a conexão e os logs do Render."});
-  }
-});
-
-// V21.9.0: geração de projetos completos em dados estruturados compatíveis com o editor Radar.
-// O modelo nunca devolve HTML/JS executável. A chave OpenRouter permanece no servidor.
-const openRouterCreateRequests = new Map();
-app.post("/api/ai/site-create", adminAuth, async (req, res) => {
-  const body = req.body || {};
-  const name = String(body.name || "").trim().replace(/[<>\u0000-\u001f]/g, " ").slice(0, 120);
-  const typeRaw = String(body.type || "other").trim();
-  const instruction = String(body.instruction || "").trim().slice(0, 3000);
-  const style = String(body.style || "modern").trim();
-  const contact = {
-    phone: String(body.phone || "").replace(/[<>\u0000-\u001f]/g, " ").slice(0, 40),
-    whatsapp: String(body.whatsapp || "").replace(/[<>\u0000-\u001f]/g, " ").slice(0, 40),
-    instagram: String(body.instagram || "").replace(/[<>\u0000-\u001f]/g, " ").slice(0, 100),
-    address: String(body.address || "").replace(/[<>\u0000-\u001f]/g, " ").slice(0, 180)
-  };
-  if (!name) return res.status(400).json({ ok:false, error:"Informe o nome do negócio." });
-  if (!instruction || instruction.length < 10) return res.status(400).json({ ok:false, error:"Descreva o site que deseja criar (mínimo de 10 caracteres)." });
-  const allowedTypes = new Set(["restaurant","pizza","fast_food","shop","pet","market","barber","salon","cafe","gym","clinic","hotel","car_repair","bakery","other"]);
-  const type = allowedTypes.has(typeRaw) ? typeRaw : "other";
-  const allowedStyles = new Set(["modern","premium","minimal","urban","vibrant"]);
-  const visualStyle = allowedStyles.has(style) ? style : "modern";
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return res.status(503).json({ ok:false, error:"OPENROUTER_API_KEY não está configurada no Render." });
-  const ip = String(req.ip || req.socket?.remoteAddress || "unknown"), now = Date.now();
-  const recent = (openRouterCreateRequests.get(ip) || []).filter(t => now - t < 60000);
-  if (recent.length >= 3) return res.status(429).json({ ok:false, error:"Limite de 3 criações com IA por minuto. Aguarde e tente novamente." });
-  const configuredModel = String(process.env.OPENROUTER_MODEL || "openrouter/free").trim();
-  const models = [...new Set([...(configuredModel === "openrouter/free" || /:free$/i.test(configuredModel) ? [configuredModel] : []), "openrouter/free"])];
-  recent.push(now); openRouterCreateRequests.set(ip,recent);
-  const systemPrompt = `Você é arquiteto de informação, UX writer e designer de sites para pequenos negócios brasileiros. Gere conteúdo em português do Brasil. Responda SOMENTE JSON válido, sem markdown, HTML, CSS ou JavaScript. Estrutura EXATA: {"title":"título principal","description":"descrição curta","c1":"#RRGGBB","c2":"#RRGGBB","backgroundColor":"#RRGGBB","textColor":"#RRGGBB","surfaceColor":"#RRGGBB","font":"system-ui","headingSize":64,"bodySize":16,"dark":false,"btn":"round","visualStyle":"modern","layoutVariant":"heroSplit","items":[{"cat":"categoria","name":"nome","price":"","desc":"descrição"}],"sections":["about","items","gallery","reviews","contact","location"]}. Crie uma página inicial completa e coerente com o ramo do negócio. Gere de 3 a 8 produtos/serviços relevantes, mas NÃO invente preços: price deve ser string vazia quando o usuário não fornecer preço. Não invente telefone, endereço, redes sociais, depoimentos, avaliações, certificações, prêmios ou fatos sobre a empresa. Use textos comerciais claros sem alegações não comprovadas. Diferencie cores de marca, fundo, superfície e texto com contraste legível. Cores HEX. visualStyle permitido: premium,modern,urban,minimal,vibrant. layoutVariant permitido: heroSplit,heroFull,heroCentered,editorial. btn: pill,round,square. font CSS comum. headingSize de 32 a 88; bodySize de 12 a 24. Seções permitidas: about,items,gallery,reviews,contact,faq,team,offers,location. Nunca inclua scripts, HTML ou código executável.`;
-  const userPrompt = `Nome do negócio: ${name}\nCategoria: ${type}\nEstilo visual solicitado: ${visualStyle}\nDescrição e requisitos do usuário: ${instruction}\nDados de contato fornecidos (use somente os que não estiverem vazios): ${JSON.stringify(contact)}\nCrie o conteúdo e a estrutura do site. Não invente dados ausentes.`;
-  try {
-    let data = null, lastStatus = 0;
-    for (const model of models) {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method:"POST", headers:{Authorization:`Bearer ${apiKey}`,"Content-Type":"application/json","X-OpenRouter-Title":"Radar AI Website Builder"},
-        body:JSON.stringify({model,temperature:0.55,max_tokens:3000,messages:[{role:"system",content:systemPrompt},{role:"user",content:userPrompt}]}),
-        signal:AbortSignal.timeout(60000)
-      });
-      lastStatus = response.status;
-      if (!response.ok) { console.error("OpenRouter site-create HTTP", response.status, "model", model); continue; }
-      data = await response.json();
-      if (data?.choices?.[0]?.message?.content) break;
-      data = null;
-    }
-    if (!data) return res.status(lastStatus===429?429:502).json({ok:false,error:lastStatus===401||lastStatus===403?"OpenRouter recusou a chave. Confira OPENROUTER_API_KEY no Render.":lastStatus===402?"A conta/modelo do OpenRouter não tem crédito ou cota disponível.":lastStatus===429?"Limite de uso do OpenRouter atingido. Aguarde e tente novamente.":"A IA não conseguiu gerar o projeto. Confira OPENROUTER_MODEL, a cota do OpenRouter e os logs do Render."});
-    let raw=data.choices[0].message.content;
-    if(Array.isArray(raw)) raw=raw.map(x=>x?.text||"").join("");
-    if(typeof raw!=="string"||!raw.trim()) return res.status(502).json({ok:false,error:"A IA retornou uma resposta vazia."});
-    raw=raw.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/i,"");
-    const first=raw.indexOf("{"), last=raw.lastIndexOf("}");
-    if(first<0||last<=first) return res.status(502).json({ok:false,error:"A IA não retornou um projeto estruturado válido. Tente novamente."});
-    const generated=JSON.parse(raw.slice(first,last+1));
-    const hex=v=>typeof v==="string"&&/^#[0-9a-fA-F]{6}$/.test(v);
-    const validStyles=new Set(["premium","modern","urban","minimal","vibrant"]), validLayouts=new Set(["heroSplit","heroFull","heroCentered","editorial"]);
-    const items=Array.isArray(generated.items)?generated.items.slice(0,8).map(x=>({cat:String(x?.cat||"Destaques").slice(0,80),name:String(x?.name||"").slice(0,120),price:"",desc:String(x?.desc||"").slice(0,300),img:""})).filter(x=>x.name):[];
-    if(items.length<2) return res.status(502).json({ok:false,error:"A IA gerou poucos produtos ou serviços. Tente detalhar melhor o negócio."});
-    const sectionsAllowed=new Set(["about","items","gallery","reviews","contact","faq","team","offers","location"]);
-    const requestedSections=Array.isArray(generated.sections)?generated.sections.filter(x=>sectionsAllowed.has(typeof x==="string"?x:x?.k)).map(x=>typeof x==="string"?x:x.k).slice(0,9):["about","items","gallery","contact","location"];
-    const sections=Object.keys({about:1,items:1,gallery:1,reviews:1,contact:1,faq:1,team:1,offers:1,location:1}).map(k=>({k,on:requestedSections.includes(k)}));
-    const project={
-      id:crypto.randomUUID(), name, type, phone:contact.phone, whatsapp:contact.whatsapp, instagram:contact.instagram, address:contact.address,
-      title:String(generated.title||name).slice(0,180), description:String(generated.description||instruction).slice(0,1200),
-      c1:hex(generated.c1)?generated.c1:"#536dfe", c2:hex(generated.c2)?generated.c2:"#172033",
-      backgroundColor:hex(generated.backgroundColor)?generated.backgroundColor:"#f5f6f8", textColor:hex(generated.textColor)?generated.textColor:"#171923", surfaceColor:hex(generated.surfaceColor)?generated.surfaceColor:"#ffffff",
-      font:/^[a-zA-Z ,'-]{1,60}$/.test(String(generated.font||""))?generated.font:"system-ui",
-      headingSize:Math.max(32,Math.min(88,Math.round(Number(generated.headingSize)||64))), bodySize:Math.max(12,Math.min(24,Math.round(Number(generated.bodySize)||16))),
-      dark:typeof generated.dark==="boolean"?generated.dark:false, btn:["pill","round","square"].includes(generated.btn)?generated.btn:"round",
-      visualStyle:validStyles.has(generated.visualStyle)?generated.visualStyle:visualStyle, layoutVariant:validLayouts.has(generated.layoutVariant)?generated.layoutVariant:"heroSplit",
-      items, sections, gallery:[], reviews:[], level:"professional", contentIsSuggested:false, published:false,
-      createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(), aiGenerated:true, aiModel:data.model||configuredModel
-    };
-    return res.json({ok:true,model:data.model||"openrouter/free",project,message:"Estrutura do site gerada. Revise os dados antes de publicar."});
-  } catch(error) {
-    console.error("Falha na criação de site IA:",error?.name||"Error",error?.message||"");
-    return res.status(502).json({ok:false,error:error instanceof SyntaxError?"A IA retornou JSON inválido. Tente novamente.":error?.name==="TimeoutError"?"A geração demorou demais para responder. Tente novamente.":"Falha de comunicação com OpenRouter. Confira a conexão e os logs do Render."});
   }
 });
 
@@ -445,13 +406,13 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.9.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.9.1",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.9.0",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.9.1",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -557,7 +518,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.9.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.9.1",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -950,4 +911,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.9.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.9.1 em http://localhost:${PORT}`));

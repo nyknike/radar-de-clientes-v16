@@ -1,32 +1,38 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { normalizeGeneratedSite } from "../lib/site-builder.js";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-
-test('gerador de sites usa rota administrativa e chave apenas no servidor', () => {
-  assert.match(server, /app\.post\("\/api\/ai\/site-create", adminAuth/);
-  assert.match(server, /process\.env\.OPENROUTER_API_KEY/);
-  assert.match(app, /\/api\/ai\/site-create/);
-  assert.match(app, /site-create\|generate-image/);
+test("normaliza estrutura gerada e remove preços inventados", () => {
+  const site = normalizeGeneratedSite({
+    title: "Forno da Vila", description: "Pizzas artesanais", aboutText: "Feitas com cuidado",
+    c1: "#123456", c2: "red", enabledSections: ["about", "faq", "script"],
+    items: [{ cat: "Pizzas", name: "Margherita", price: "R$ 99,90", desc: "Tomate e queijo" }],
+    faqItems: [{ q: "Entrega?", a: "Consulte a loja." }, { q: "", a: "inválido" }]
+  }, { name: "Forno da Vila", brief: "Pizzaria artesanal", style: "modern" });
+  assert.equal(site.title, "Forno da Vila");
+  assert.equal(site.items[0].price, "");
+  assert.deepEqual(site.enabledSections, ["about", "faq"]);
+  assert.equal(site.c1, "#123456");
+  assert.equal("c2" in site, false);
+  assert.equal(site.faqItems.length, 1);
 });
 
-test('gerador retorna estrutura validada, sem executar HTML ou JavaScript do modelo', () => {
-  assert.match(server, /const generated=JSON\.parse/);
-  assert.match(server, /const items=Array\.isArray\(generated\.items\)/);
-  assert.match(server, /const sections=Object\.keys/);
-  assert.match(server, /price:""/);
-  assert.doesNotMatch(server, /res\.send\(generated\.html/);
+test("limita coleções e comprimentos do conteúdo", () => {
+  const site = normalizeGeneratedSite({
+    title: "T".repeat(300), description: "D".repeat(2000),
+    items: Array.from({ length: 25 }, (_, i) => ({ name: `Item ${i}`, desc: "x".repeat(500) })),
+    faqItems: Array.from({ length: 12 }, (_, i) => ({ q: `Pergunta ${i}`, a: "a".repeat(500) }))
+  }, { name: "Loja", brief: "Descrição da loja", style: "invalid" });
+  assert.equal(site.title.length, 180);
+  assert.equal(site.description.length, 1200);
+  assert.equal(site.items.length, 16);
+  assert.equal(site.items[0].desc.length, 300);
+  assert.equal(site.faqItems.length, 6);
+  assert.equal(site.faqItems[0].a.length, 350);
+  assert.equal(site.visualStyle, "auto");
 });
 
-test('interface do criador e versão V21.9.0 estão presentes', () => {
-  assert.match(html, /Criador de Sites com IA/);
-  assert.match(html, /id="aiCreateBrief"/);
-  assert.match(html, /app\.js\?v=21\.9\.0/);
-  assert.match(server, /version:"V21\.9\.0"/);
+test("rejeita resposta sem itens ou sem objeto JSON", () => {
+  assert.throws(() => normalizeGeneratedSite({ title: "Site", description: "Descrição", items: [] }, { name: "Site", brief: "Descrição longa" }), /pelo menos um item/);
+  assert.throws(() => normalizeGeneratedSite(null, { name: "Site", brief: "Descrição longa" }), /objeto JSON/);
 });
