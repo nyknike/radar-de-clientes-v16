@@ -1,3 +1,0 @@
-V21.9.2
-Correção de inicialização: inclui lib/site-builder.js exigido pelo server.js da linha V21.9.1.
-Mantém o projeto baseado na V21.9.0 e preserva as integrações já existentes.
