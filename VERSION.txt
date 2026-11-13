@@ -1,0 +1,4 @@
+RADAR DE CLIENTES
+Versão: V21.9.3
+Base: V21.9.2 (ZIP enviado pelo usuário)
+Correção: remoção de importação obrigatória não utilizada que impedia a inicialização no Render.

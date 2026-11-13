@@ -1,0 +1,22 @@
+RADAR STUDIO V21.5.3 — FOCO EM SITES PROFISSIONAIS
+
+Objetivo desta versão
+- Priorizar a prévia do site ao abrir o Studio.
+- Remover a barra flutuante confusa com cor, tamanho, troca e adição de imagens.
+- Retirar a edição direta incompleta que reabria o iframe durante a digitação.
+- Organizar a navegação em Prévia, Informações, IA e conteúdo, Seções, Estilo visual, Funções e Publicar.
+- Aumentar a área de prévia no celular e manter controles abaixo dela.
+- Melhorar composição dos cards, espaçamento, imagem hero e adaptação mobile.
+- Usar títulos de seção diferentes por tipo de negócio em vez de repetir títulos genéricos.
+- Evitar títulos hero muito curtos que substituam acidentalmente o nome comercial completo.
+
+APIs e segredos
+- Nenhuma API key foi adicionada ou alterada.
+- Integrações Supabase, OpenRouter, Cloudflare Pages e Mercado Pago preservadas.
+- Não houve publicação no Render.
+
+Limitações conhecidas
+- Não é um editor livre tipo Canva; a edição é feita pelas abas de conteúdo/estilo e a prévia.
+- Não foi integrado provedor de geração de imagem nesta versão.
+- Os sites ainda usam imagens de banco de imagens e precisam ser revisados para cada cliente.
+- Testes automatizados e sintaxe aprovados; teste visual em navegador real/celular ainda precisa ser feito antes de publicar.
