@@ -1,9 +1,0 @@
-RADAR V21.8.1 — CORREÇÃO DO BOTÃO DE PRÉVIA
-
-- Botão renomeado para “Prévia pública” e destacado na lista de projetos salvos.
-- Aumentada a área clicável, com altura mínima adequada para toque em celulares.
-- Corrigida a busca do projeto por ID para aceitar IDs serializados como texto.
-- Prévia abre em modo celular por padrão e valida a existência do projeto antes de abrir.
-- Atualizados os identificadores de cache dos arquivos CSS e JavaScript.
-
-Escopo: somente interface e abertura da prévia local do projeto. Não altera Supabase, APIs, persistência, publicação externa ou Cloudflare.
