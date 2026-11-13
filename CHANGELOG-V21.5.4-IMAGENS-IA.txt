@@ -1,8 +1,0 @@
-RADAR V21.5.4 — GERAÇÃO DE IMAGENS ORIGINAIS
-
-- Adiciona endpoint protegido no servidor para gerar imagens com Cloudflare Workers AI / FLUX.1 schnell.
-- Reutiliza CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID já usados para publicação, desde que o token também tenha permissão Workers AI: Run.
-- Botões sob demanda para criar imagem principal e imagem de galeria. A imagem gerada é aplicada ao rascunho e só permanece no projeto após salvar.
-- Limite local conservador: 2 gerações por minuto por IP e 12 por dia por IP.
-- A Cloudflare anuncia 10.000 Neurons/dia gratuitos no Workers AI; cotas podem variar e contas em plano pago podem ter cobrança acima da franquia. Confira o painel da Cloudflare antes de uso intensivo.
-- Nenhuma chave ou configuração real foi alterada; não houve deploy.
