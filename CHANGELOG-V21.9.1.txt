@@ -1,9 +1,0 @@
-RADAR V21.9.1 — REVISÃO E IDENTIFICAÇÃO DA VERSÃO
-
-- Revisados os arquivos da distribuição V21.9.0 antes da atualização.
-- Atualizado o identificador ativo para V21.9.1 na interface, cache dos arquivos estáticos, servidor, endpoints de status, package.json e VERSION.txt.
-- Mantidos os arquivos de histórico da V21.9.0 e versões anteriores sem reescrever registros antigos.
-- Nenhuma integração, variável de ambiente ou credencial foi alterada.
-- Esta revisão não adiciona funcionalidades novas ao criador de sites; é uma revisão de pacote e identificação da versão.
-
-Verificações locais: npm run check e npm test. Os testes não substituem validação com credenciais reais nem teste de deploy no Render.
