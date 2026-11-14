@@ -1,0 +1,20 @@
+RADAR V21.10.0 — PRIMEIRA ETAPA DO CARDÁPIO
+
+Base: V21.9.3-CORRIGIDO fornecida pelo usuário.
+
+ALTERAÇÕES
+- Preparação dos produtos do catálogo/cardápio com disponibilidade e controle opcional de estoque.
+- Editor de conteúdo agora permite marcar produto como disponível/indisponível, ativar controle de estoque e informar quantidade.
+- Produtos indisponíveis ou com estoque controlado zerado não aparecem no cardápio público e não podem ser adicionados ao carrinho.
+- Produtos antigos são normalizados automaticamente com disponibilidade ativa e sem controle de estoque, preservando os dados já cadastrados.
+- Mantidas as integrações existentes e a estrutura de reservas.
+
+LIMITAÇÃO DESTA ETAPA
+- A baixa automática do estoque por pedido confirmado ainda não foi ativada. O controle de quantidade é cadastrado nesta etapa; a baixa transacional e o checkout próprio ficam para a etapa seguinte.
+- Opções complexas de produto (tamanhos, sabores, bordas e adicionais) ainda serão implementadas na próxima etapa.
+- O fluxo de pedidos pelo WhatsApp existente foi preservado.
+
+VALIDAÇÃO
+- Sintaxe JavaScript verificada com node --check.
+- 7 testes automatizados passaram (7/7).
+- Nenhum deploy ou alteração no Render foi realizado.
