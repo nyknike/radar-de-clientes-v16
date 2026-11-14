@@ -24,11 +24,11 @@ test('gerador retorna estrutura validada, sem executar HTML ou JavaScript do mod
   assert.doesNotMatch(server, /res\.send\(generated\.html/);
 });
 
-test('interface do criador e versão V21.10.0 estão presentes', () => {
-  assert.match(html, /Criador de Sites com IA/);
+test('interface do criador e versão V21.11.0 estão presentes', () => {
+  assert.match(html, /CRIADOR DE SITES COM IA/);
   assert.match(html, /id="aiCreateBrief"/);
-  assert.match(html, /app\.js\?v=21\.10\.0/);
-  assert.match(server, /version:"V21\.10\.0"/);
+  assert.match(html, /app\.js\?v=21\.11\.0/);
+  assert.match(server, /version:"V21\.11\.0"/);
 });
 
 test('módulo ausente no deploy exporta normalizador e valida dados de IA', async () => {
@@ -45,10 +45,24 @@ test('módulo ausente no deploy exporta normalizador e valida dados de IA', asyn
   assert.throws(() => normalizeGeneratedSite({ items: [] }, { name: 'Teste' }), /menos de dois/);
 });
 
-test('cardápio V21.10.0 preserva produtos antigos e filtra indisponíveis/estoque zerado', () => {
+test('cardápio V21.11.0 preserva produtos antigos e filtra indisponíveis/estoque zerado', () => {
   assert.match(app, /trackStock:!!i\.trackStock/);
   assert.match(app, /stock:Math\.max\(0,Number\(i\.stock\)\|\|0\)/);
   assert.match(app, /i\.active!==false&&\(!i\.trackStock\|\|Number\(i\.stock\)>0\)/);
   assert.match(app, /data-p="items\.\$\{i\}\.active"/);
   assert.match(app, /data-p="items\.\$\{i\}\.trackStock"/);
+});
+
+
+test('V21.11.0 integra criação contextual e três prompts por categoria', () => {
+  assert.match(app, /data-ai-site="\$\{b\.id\}"/);
+  assert.match(app, /if\(!aiSelectedBusiness\)/);
+  assert.match(app, /AI_PROMPT_PROFILES/);
+  assert.match(app, /title:"1\. Premium e sofisticado"/);
+  assert.match(app, /title:"2\. Moderno e comercial"/);
+  assert.match(app, /title:"3\. Autêntico e marcante"/);
+  assert.match(app, /data-ai-prompt/);
+  assert.match(app, /sourceBusinessId:aiSelectedBusiness\.id/);
+  assert.doesNotMatch(html, /id="openAICreator"/);
+  assert.match(html, /id="aiPromptOptions"/);
 });
