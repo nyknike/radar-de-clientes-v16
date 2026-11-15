@@ -35,8 +35,16 @@ export function normalizeGeneratedSite(input = {}, context = {}) {
   return {
     id: crypto.randomUUID(), name, type: clean(context.type, 40, 'other'),
     title: clean(input.title, 180, name) || name,
+    tagline: clean(input.tagline, 100),
     description: clean(input.description, 1200, brief),
-    aboutText: clean(input.aboutText, 1400), offerTitle: clean(input.offerTitle, 120),
+    aboutText: clean(input.aboutText, 1400),
+    highlights: Array.isArray(input.highlights) ? input.highlights.slice(0, 4).map(item => ({
+      title: clean(item?.title, 90), desc: clean(item?.desc, 240)
+    })).filter(item => item.title && item.desc) : [],
+    faqItems: Array.isArray(input.faqItems) ? input.faqItems.slice(0, 5).map(item => ({
+      q: clean(item?.q, 140), a: clean(item?.a, 320)
+    })).filter(item => item.q && item.a) : [],
+    offerTitle: clean(input.offerTitle, 120),
     offerDescription: clean(input.offerDescription, 500),
     c1: color(input.c1, '#536dfe'), c2: color(input.c2, '#172033'),
     backgroundColor: color(input.backgroundColor, '#f5f6f8'),

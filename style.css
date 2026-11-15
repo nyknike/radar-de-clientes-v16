@@ -224,7 +224,7 @@ body.visual-editor-mode .status{display:none}
 .ai-create-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.ai-create-grid label{display:flex;flex-direction:column;gap:6px;color:#dce4f1;font-size:12px;font-weight:750}.ai-create-grid input,.ai-create-grid select,.ai-create-grid textarea{width:100%;min-width:0;box-sizing:border-box;padding:11px 12px;border-radius:9px;border:1px solid #354257;background:#0b111b;color:#f4f6fb;font:inherit;font-size:13px}.ai-create-grid textarea{resize:vertical;line-height:1.5}.ai-create-wide{grid-column:1/-1}.ai-create-note{font-size:12px;line-height:1.55;color:#9eabc0;padding:11px 13px;border:1px solid #303b4d;border-radius:10px;background:#171f2d}.ai-create-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.ai-create-actions .hint{flex:1;min-width:180px;color:#9eabc0}.ai-create-actions button{min-height:44px}
 @media(max-width:620px){.ai-creator-launch{align-items:flex-start;flex-direction:column}.ai-creator-launch button{width:100%}.ai-create-grid{grid-template-columns:1fr}.ai-create-wide{grid-column:auto}#aiCreatorDialog .ai-creator-dialog{padding:15px}#aiCreatorDialog .dialog-head h2{font-size:19px}}
 
-/* V21.11.0 — criação contextual e propostas de prompt */
+/* V21.12.0 — criação contextual e propostas de prompt */
 .prospect-actions .ai-site-cta{background:linear-gradient(135deg,#555fe8,#8062df);color:#fff;border:1px solid rgba(160,160,255,.45);font-weight:800}
 .prospect-actions .ai-site-cta:hover{filter:brightness(1.08)}
 .ai-prompt-picker{display:flex;flex-direction:column;gap:8px;padding:13px;border:1px solid #354257;border-radius:12px;background:#151e2c;color:#e7edf8}
