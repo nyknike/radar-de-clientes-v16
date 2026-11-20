@@ -20,15 +20,15 @@ test('gerador retorna estrutura validada, sem executar HTML ou JavaScript do mod
   assert.match(server, /const generated=JSON\.parse/);
   assert.match(server, /const items=Array\.isArray\(generated\.items\)/);
   assert.match(server, /const sections=Object\.keys/);
-  assert.match(server, /price:""/);
+  assert.match(server, /preserveExplicitPrice/);
   assert.doesNotMatch(server, /res\.send\(generated\.html/);
 });
 
-test('interface do criador e versão V21.12.0 estão presentes', () => {
+test('interface do criador e versão V21.13.0 estão presentes', () => {
   assert.match(html, /CRIADOR DE SITES COM IA/);
   assert.match(html, /id="aiCreateBrief"/);
-  assert.match(html, /app\.js\?v=21\.12\.0/);
-  assert.match(server, /version:"V21\.12\.0"/);
+  assert.match(html, /app\.js\?v=21\.13\.0/);
+  assert.match(server, /version:"V21\.13\.0"/);
 });
 
 test('módulo ausente no deploy exporta normalizador e valida dados de IA', async () => {
@@ -51,7 +51,7 @@ test('módulo ausente no deploy exporta normalizador e valida dados de IA', asyn
   assert.throws(() => normalizeGeneratedSite({ items: [] }, { name: 'Teste' }), /menos de dois/);
 });
 
-test('cardápio V21.12.0 preserva produtos antigos e filtra indisponíveis/estoque zerado', () => {
+test('cardápio preserva produtos antigos e filtra indisponíveis/estoque zerado', () => {
   assert.match(app, /trackStock:!!i\.trackStock/);
   assert.match(app, /stock:Math\.max\(0,Number\(i\.stock\)\|\|0\)/);
   assert.match(app, /i\.active!==false&&\(!i\.trackStock\|\|Number\(i\.stock\)>0\)/);
@@ -60,7 +60,7 @@ test('cardápio V21.12.0 preserva produtos antigos e filtra indisponíveis/estoq
 });
 
 
-test('V21.12.0 integra criação contextual e três prompts por categoria', () => {
+test('integra criação contextual e três prompts por categoria', () => {
   assert.match(app, /data-ai-site="\$\{b\.id\}"/);
   assert.match(app, /if\(!aiSelectedBusiness\)/);
   assert.match(app, /AI_PROMPT_PROFILES/);
@@ -74,7 +74,7 @@ test('V21.12.0 integra criação contextual e três prompts por categoria', () =
 });
 
 
-test('V21.12.0 gera conteúdo contextual adicional e o renderiza sem dados inventados', () => {
+test('gera conteúdo contextual adicional e o renderiza sem dados inventados', () => {
   assert.match(server, /aboutText:String\(generated\.aboutText/);
   assert.match(server, /highlights:Array\.isArray\(generated\.highlights\)/);
   assert.match(server, /faqItems:Array\.isArray\(generated\.faqItems\)/);
@@ -85,9 +85,15 @@ test('V21.12.0 gera conteúdo contextual adicional e o renderiza sem dados inven
   assert.match(app, /data-p="tagline"/);
 });
 
-test('V21.12.0 edição conversacional aceita alterações em destaques e FAQ', () => {
+test('edição conversacional aceita alterações em destaques e FAQ', () => {
   assert.match(server, /if\(Array\.isArray\(parsed\.highlights\)\) patch\.highlights/);
   assert.match(server, /if\(Array\.isArray\(parsed\.faqItems\)\) patch\.faqItems/);
   assert.match(app, /if\(Array\.isArray\(patch\.highlights\)\)ed\.highlights/);
   assert.match(app, /if\(Array\.isArray\(patch\.faqItems\)\)ed\.faqItems/);
+});
+
+test('preços gerados só são mantidos quando foram explicitamente informados', async () => {
+  const { preserveExplicitPrice } = await import('../lib/site-builder.js');
+  assert.equal(preserveExplicitPrice('R$ 49,90', 'Pizza grande por R$ 49,90'), 'R$ 49,90');
+  assert.equal(preserveExplicitPrice('R$ 59,90', 'Pizza grande por R$ 49,90'), '');
 });

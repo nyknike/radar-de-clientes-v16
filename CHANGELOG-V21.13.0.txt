@@ -1,0 +1,33 @@
+RADAR DE CLIENTES — V21.13.0
+CARDÁPIO AVANÇADO E PEDIDOS
+
+BASE E PRESERVAÇÃO
+- Base funcional: V21.12.0.
+- Preservadas as alterações técnicas úteis do pacote preliminar V21.13.0: confirmação de persistência após criação por IA, aviso claro quando a sincronização falha, proteção administrativa do teste de IA e validação de preços explicitamente informados no briefing.
+- Preservados projetos, editor visual, prévia pública, publicação, reservas, catálogo/cardápio, imagens, módulos, integrações e variáveis de ambiente existentes.
+- Nenhuma migração SQL nova e nenhuma variável de ambiente nova exigida.
+
+CARDÁPIO E PEDIDOS
+- O carrinho agora envia o pedido ao servidor antes de abrir o WhatsApp.
+- A rota pública de pedidos aceita chamadas cross-origin de páginas estáticas, com CORS limitado ao endpoint de intake e sem credenciais administrativas.
+- O servidor identifica o estabelecimento e valida cada item contra o cardápio salvo no projeto publicado.
+- O preço final é obtido do cadastro do servidor; o navegador não pode impor um preço diferente.
+- Itens inativos, inexistentes, sem preço confirmado ou com estoque insuficiente são recusados.
+- Para produtos com controle de estoque ativado, a quantidade é baixada após a validação do pedido.
+- A validação e a baixa de estoque são serializadas dentro do processo para reduzir risco de venda simultânea acima do saldo.
+- Pedido e atualização de estoque são persistidos juntos. Se a persistência falhar, o estado anterior é restaurado e o pedido não é confirmado.
+- Depois do registro, o cliente recebe um código de pedido e segue para o WhatsApp com os detalhes confirmados.
+- O pedido guarda modalidade (entrega/retirada), endereço, contato e observações.
+- O painel administrativo mostra código, itens, total, modalidade e endereço, além de permitir atualizar o estado do pedido.
+
+LIMITES CONHECIDOS
+- A serialização de pedidos protege concorrência dentro de uma única instância do servidor. Não substitui uma transação/RPC no banco para múltiplas instâncias simultâneas.
+- O estoque é atualizado no estado persistente do Radar e no objeto de projeto publicado. O HTML estático exportado para outro provedor não é reescrito automaticamente a cada venda; a validação do pedido continua sendo feita pelo servidor Radar.
+- O fluxo abre o WhatsApp depois que o pedido foi salvo. Isso não equivale a confirmação de pagamento nem de aceitação pelo estabelecimento; o estado inicial permanece “recebido”.
+- A rota de pedidos continua sujeita ao limite de solicitações por IP existente.
+- Não foi realizado deploy no Render nem teste real com Supabase, OpenRouter, Cloudflare Pages, Workers AI ou Mercado Pago.
+
+TESTES LOCAIS
+- Verificação de sintaxe de server.js, app.js, admin.js e config/integrations.js.
+- Testes automatizados: normalização de nomes, parsing de preços brasileiros, validação de item/preço/estoque, rejeição de item inativo e preço não confirmado, e verificações estruturais da rota de pedidos.
+- npm test: 18 testes aprovados.

@@ -20,12 +20,16 @@ try {
   }
 }
 const { getIntegrationStatus, testIntegration } = integrationModule;
+import { preserveExplicitPrice } from "./lib/site-builder.js";
+import { validateMenuOrder } from "./lib/order-utils.js";
 const execFileAsync = promisify(execFile);
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 const ROOT = process.cwd();
 app.use(express.json({limit:"25mb"}));
+// Pedidos são enviados por sites públicos, inclusive páginas estáticas hospedadas fora do domínio do Radar.
+app.use((req,res,next)=>{if(req.path==="/api/intake/orders"){res.setHeader("Access-Control-Allow-Origin","*");res.setHeader("Access-Control-Allow-Methods","POST, OPTIONS");res.setHeader("Access-Control-Allow-Headers","Content-Type");if(req.method==="OPTIONS")return res.sendStatus(204);}next();});
 app.use((req,res,next)=>{ if(req.path==="/"||req.path==="/index.html"||(req.path.startsWith("/demo/")||req.path.startsWith("/site/"))||req.path.endsWith(".js")||req.path.endsWith(".css")){res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");res.setHeader("Pragma","no-cache");res.setHeader("Expires","0");} next(); });
 
 // V18.0.0: o banco remoto é obrigatório em produção. O arquivo local é apenas
@@ -297,7 +301,7 @@ app.post("/api/ai/site-create", adminAuth, async (req, res) => {
   const configuredModel = String(process.env.OPENROUTER_MODEL || "openrouter/free").trim();
   const models = [...new Set([...(configuredModel === "openrouter/free" || /:free$/i.test(configuredModel) ? [configuredModel] : []), "openrouter/free"])];
   recent.push(now); openRouterCreateRequests.set(ip,recent);
-  const systemPrompt = `Você é arquiteto de informação, UX writer e designer de sites para pequenos negócios brasileiros. Gere conteúdo em português do Brasil. Responda SOMENTE JSON válido, sem markdown, HTML, CSS ou JavaScript. Estrutura EXATA: {"title":"título principal","tagline":"frase curta de posicionamento","description":"descrição curta","aboutText":"texto da seção sobre","highlights":[{"title":"destaque","desc":"benefício sem alegações não comprovadas"}],"faqItems":[{"q":"pergunta frequente","a":"resposta segura e objetiva"}],"c1":"#RRGGBB","c2":"#RRGGBB","backgroundColor":"#RRGGBB","textColor":"#RRGGBB","surfaceColor":"#RRGGBB","font":"system-ui","headingSize":64,"bodySize":16,"dark":false,"btn":"round","visualStyle":"modern","layoutVariant":"heroSplit","items":[{"cat":"categoria","name":"nome","price":"","desc":"descrição"}],"sections":["about","items","gallery","reviews","contact","location"]}. Crie uma página inicial completa e coerente com o ramo do negócio. Adapte a hierarquia e a linguagem ao setor: alimentação deve priorizar cardápio, pedidos, ingredientes e ocasião de consumo; barbearia/salão deve priorizar serviços, profissionais quando informados e agendamento; loja deve priorizar categorias, coleção e compra; pet deve priorizar cuidados e serviços; clínica deve usar linguagem informativa e não prometer resultados; academia deve priorizar modalidades e planos sem inventar valores. Gere tagline curta, aboutText original, 3 ou 4 highlights e até 5 FAQItems com respostas genéricas e seguras. Não afirme horário, entrega, garantia, especialidade, certificação ou política que não tenha sido fornecida. Gere de 3 a 8 produtos/serviços relevantes, mas NÃO invente preços: price deve ser string vazia quando o usuário não fornecer preço. Não invente telefone, endereço, redes sociais, depoimentos, avaliações, certificações, prêmios ou fatos sobre a empresa. Use textos comerciais claros sem alegações não comprovadas. Diferencie cores de marca, fundo, superfície e texto com contraste legível. Cores HEX. visualStyle permitido: premium,modern,urban,minimal,vibrant. layoutVariant permitido: heroSplit,heroFull,heroCentered,editorial. btn: pill,round,square. font CSS comum. headingSize de 32 a 88; bodySize de 12 a 24. Seções permitidas: about,items,gallery,reviews,contact,faq,team,offers,location. Nunca inclua scripts, HTML ou código executável.`;
+  const systemPrompt = `Você é arquiteto de informação, UX writer e designer de sites para pequenos negócios brasileiros. Gere conteúdo em português do Brasil. Responda SOMENTE JSON válido, sem markdown, HTML, CSS ou JavaScript. Estrutura EXATA: {"title":"título principal","tagline":"frase curta de posicionamento","description":"descrição curta","aboutText":"texto da seção sobre","highlights":[{"title":"destaque","desc":"benefício sem alegações não comprovadas"}],"faqItems":[{"q":"pergunta frequente","a":"resposta segura e objetiva"}],"c1":"#RRGGBB","c2":"#RRGGBB","backgroundColor":"#RRGGBB","textColor":"#RRGGBB","surfaceColor":"#RRGGBB","font":"system-ui","headingSize":64,"bodySize":16,"dark":false,"btn":"round","visualStyle":"modern","layoutVariant":"heroSplit","items":[{"cat":"categoria","name":"nome","price":"valor explicitamente informado no briefing ou string vazia","desc":"descrição"}],"sections":["about","items","gallery","reviews","contact","location"]}. Crie uma página inicial completa e coerente com o ramo do negócio. Adapte a hierarquia e a linguagem ao setor: alimentação deve priorizar cardápio, pedidos, ingredientes e ocasião de consumo; barbearia/salão deve priorizar serviços, profissionais quando informados e agendamento; loja deve priorizar categorias, coleção e compra; pet deve priorizar cuidados e serviços; clínica deve usar linguagem informativa e não prometer resultados; academia deve priorizar modalidades e planos sem inventar valores. Gere tagline curta, aboutText original, 3 ou 4 highlights e até 5 FAQItems com respostas genéricas e seguras. Não afirme horário, entrega, garantia, especialidade, certificação ou política que não tenha sido fornecida. Gere de 3 a 8 produtos/serviços relevantes. Preserve em price os valores que o usuário informar explicitamente na descrição, associando-os somente ao produto/serviço correspondente; se não houver preço informado para aquele item, use string vazia. Nunca estime, arredonde ou invente preços. Não invente telefone, endereço, redes sociais, depoimentos, avaliações, certificações, prêmios ou fatos sobre a empresa. Use textos comerciais claros sem alegações não comprovadas. Diferencie cores de marca, fundo, superfície e texto com contraste legível. Cores HEX. visualStyle permitido: premium,modern,urban,minimal,vibrant. layoutVariant permitido: heroSplit,heroFull,heroCentered,editorial. btn: pill,round,square. font CSS comum. headingSize de 32 a 88; bodySize de 12 a 24. Seções permitidas: about,items,gallery,reviews,contact,faq,team,offers,location. Nunca inclua scripts, HTML ou código executável.`;
   const userPrompt = `Nome do negócio: ${name}\nCategoria: ${type}\nEstilo visual solicitado: ${visualStyle}\nDescrição e requisitos do usuário: ${instruction}\nDados de contato fornecidos (use somente os que não estiverem vazios): ${JSON.stringify(contact)}\nCrie o conteúdo e a estrutura do site. Não invente dados ausentes.`;
   try {
     let data = null, lastStatus = 0;
@@ -323,7 +327,7 @@ app.post("/api/ai/site-create", adminAuth, async (req, res) => {
     const generated=JSON.parse(raw.slice(first,last+1));
     const hex=v=>typeof v==="string"&&/^#[0-9a-fA-F]{6}$/.test(v);
     const validStyles=new Set(["premium","modern","urban","minimal","vibrant"]), validLayouts=new Set(["heroSplit","heroFull","heroCentered","editorial"]);
-    const items=Array.isArray(generated.items)?generated.items.slice(0,8).map(x=>({cat:String(x?.cat||"Destaques").slice(0,80),name:String(x?.name||"").slice(0,120),price:"",desc:String(x?.desc||"").slice(0,300),img:""})).filter(x=>x.name):[];
+    const items=Array.isArray(generated.items)?generated.items.slice(0,8).map(x=>({cat:String(x?.cat||"Destaques").replace(/[<>\u0000-\u001f]/g," ").slice(0,80),name:String(x?.name||"").replace(/[<>\u0000-\u001f]/g," ").slice(0,120),price:preserveExplicitPrice(String(x?.price??"").replace(/[<>\u0000-\u001f]/g," ").trim().slice(0,50),instruction),desc:String(x?.desc||"").replace(/[<>\u0000-\u001f]/g," ").slice(0,300),img:""})).filter(x=>x.name):[];
     if(items.length<2) return res.status(502).json({ok:false,error:"A IA gerou poucos produtos ou serviços. Tente detalhar melhor o negócio."});
     const sectionsAllowed=new Set(["about","items","gallery","reviews","contact","faq","team","offers","location"]);
     const requestedSections=Array.isArray(generated.sections)?generated.sections.filter(x=>sectionsAllowed.has(typeof x==="string"?x:x?.k)).map(x=>typeof x==="string"?x:x.k).slice(0,9):["about","items","gallery","contact","location"];
@@ -353,7 +357,7 @@ app.post("/api/ai/site-create", adminAuth, async (req, res) => {
 // V20.10.0: endpoint seguro para validar a conexão com OpenRouter antes de ligar
 // a IA ao fluxo visual. A chave permanece exclusivamente no servidor/Render.
 const openRouterRequests = new Map();
-app.post("/api/ai/test", async (req, res) => {
+app.post("/api/ai/test", adminAuth, async (req, res) => {
   const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
   if (!prompt || prompt.length > 3000) {
     return res.status(400).json({ ok: false, error: "Envie um prompt de até 3000 caracteres." });
@@ -455,13 +459,13 @@ app.post("/api/ai/generate-image", adminAuth, async (req,res)=>{
 app.get("/api/health", async (_req,res)=>{
   await stateReady;
   if(isProduction && !storage.connected && Date.now()-lastRemoteAttemptAt>20000) await loadRemoteState();
-  res.status(200).json({ok:true,version:"V21.12.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
+  res.status(200).json({ok:true,version:"V21.13.0",persistentStorage:storage.connected,storage:{configured:storage.configured,connected:storage.connected,error:storage.connected?null:storage.error,host:storage.host,failureCode:storage.failureCode,failureHint:storage.failureHint,checkedAt:storage.checkedAt},integrations:cfg});
 });
 
 // Status público mostra apenas se variáveis existem; nunca devolve valores secretos.
 app.get("/api/integrations/status", (_req,res)=>{
   res.setHeader("Cache-Control", "no-store");
-  res.json({ok:true,version:"V21.12.0",integrations:getIntegrationStatus()});
+  res.json({ok:true,version:"V21.13.0",integrations:getIntegrationStatus()});
 });
 
 // O servidor é a fonte compartilhada dos dados entre dispositivos.
@@ -567,7 +571,7 @@ app.put("/api/public-sites/:id", adminAuth, async (req,res)=>{
 
 app.get("/api/public-status", async (_req,res)=>{
   if(!await requireStorage(res)) return;
-  res.json({ok:true,version:"V21.12.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
+  res.json({ok:true,version:"V21.13.0",persistentStorage:storage.connected,sales:state.sales.length,platforms:state.platforms.length,publishedSites:state.publishedSites.length});
 });
 
 app.post("/api/demo/:id/event", async (req,res)=>{
@@ -623,6 +627,7 @@ app.delete("/api/admin/session",(req,res)=>{res.setHeader("Set-Cookie",`${ADMIN_
 // V20.10.0: entrada de reservas/pedidos e endpoints privados para o painel do estabelecimento.
 // Defina ADMIN_PANEL_SECRET no Render. Não use o mesmo segredo em código público.
 const intakeLimits = new Map();
+let orderMutationQueue = Promise.resolve();
 function limitIntake(req,res,next){
   const key=String(req.ip||req.socket?.remoteAddress||"unknown");
   const now=Date.now(), old=intakeLimits.get(key)||[];
@@ -687,13 +692,31 @@ app.post("/api/intake/orders", limitIntake, async (req,res)=>{
   const b=req.body||{}, siteId=cleanText(b.siteId,120), name=cleanText(b.name,120), contact=cleanText(b.contact,120);
   if(!siteId||!name||!contact||!Array.isArray(b.items)||!b.items.length||b.items.length>80) return res.status(400).json({ok:false,error:"Dados do pedido incompletos."});
   const site=state.publishedSites.find(x=>String(x.id)===siteId);
-  if(!site) return res.status(404).json({ok:false,error:"Estabelecimento não encontrado."});
-  const items=b.items.slice(0,80).map(x=>({name:cleanText(x.name,160),quantity:Math.max(1,Math.min(99,Number(x.quantity)||1)),unitPrice:Math.max(0,Math.min(100000,Number(x.unitPrice)||0)),options:cleanText(x.options,500)}));
-  const total=items.reduce((sum,x)=>sum+x.quantity*x.unitPrice,0);
-  const item={id:crypto.randomUUID(),siteId,name,contact,items,total:Math.round(total*100)/100,notes:cleanText(b.notes,1000),status:"received",createdAt:new Date().toISOString()};
-  state.orders.push(item);
-  if(!await persistState()) return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido. Tente novamente."});
-  res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total});
+  const platform=site?.platform||state.platforms.find(x=>String(x.id)===siteId);
+  if(!platform) return res.status(404).json({ok:false,error:"Estabelecimento não encontrado."});
+  const fulfillment=cleanText(b.fulfillment,40)||"Retirada no local";
+  if(!["Entrega","Retirada no local"].includes(fulfillment)) return res.status(400).json({ok:false,error:"Modalidade de recebimento inválida."});
+  const address=cleanText(b.address,500);
+  if(fulfillment==="Entrega"&&!address) return res.status(400).json({ok:false,error:"Informe o endereço para entrega ou escolha retirada no local."});
+  const requested=b.items.slice(0,80).map(x=>({name:cleanText(x?.name,160),cat:cleanText(x?.cat,80),quantity:Math.max(1,Math.min(99,Math.floor(Number(x?.quantity)||1))),options:cleanText(x?.options,500)}));
+  if(requested.some(x=>!x.name)) return res.status(400).json({ok:false,error:"Um dos itens do pedido não possui nome válido."});
+  const previousQueue=orderMutationQueue;let releaseQueue;orderMutationQueue=new Promise(resolve=>{releaseQueue=resolve;});await previousQueue;
+  try{
+    const currentPlatform=state.publishedSites.find(x=>String(x.id)===siteId)?.platform||state.platforms.find(x=>String(x.id)===siteId)||platform;
+    const menu=Array.isArray(currentPlatform.items)?currentPlatform.items:[];
+    const validation=validateMenuOrder(menu,requested);
+    if(!validation.ok)return res.status(409).json({ok:false,error:validation.error});
+    const validated=validation.items;
+    const previousState=JSON.stringify({platforms:state.platforms,publishedSites:state.publishedSites,orders:state.orders});
+    for(const line of validated)if(line.source.trackStock)line.source.stock=Math.max(0,Number(line.source.stock||0)-line.record.quantity);
+    const updatedPlatform={...currentPlatform,items:menu,updatedAt:new Date().toISOString()};
+    const platformIndex=state.platforms.findIndex(x=>String(x.id)===siteId);if(platformIndex>=0)state.platforms[platformIndex]=updatedPlatform;
+    const publishedIndex=state.publishedSites.findIndex(x=>String(x.id)===siteId);if(publishedIndex>=0)state.publishedSites[publishedIndex]={...state.publishedSites[publishedIndex],platform:updatedPlatform,updatedAt:updatedPlatform.updatedAt};
+    const items=validated.map(x=>x.record),total=items.reduce((sum,x)=>sum+x.quantity*x.unitPrice,0);
+    const item={id:crypto.randomUUID(),siteId,name,contact,items,total:Math.round(total*100)/100,fulfillment,address,notes:cleanText(b.notes,1000),status:"received",createdAt:new Date().toISOString()};state.orders.push(item);
+    if(!await persistState()){const old=JSON.parse(previousState);state.platforms=old.platforms;state.publishedSites=old.publishedSites;state.orders=old.orders;return res.status(500).json({ok:false,error:"Não foi possível salvar o pedido e atualizar o estoque. Nenhuma confirmação foi emitida."});}
+    res.status(201).json({ok:true,id:item.id,status:item.status,total:item.total,items:item.items,fulfillment:item.fulfillment});
+  }finally{releaseQueue();}
 });
 // V20.10.0 FASE 2: configuração administrativa de horários e mesas.
 async function supabaseAdminRequest(path, method="GET", body=null){
@@ -960,4 +983,4 @@ app.use("/data", (_req,res)=>res.sendStatus(404));
 // IMPORTANTE: as rotas públicas vêm antes dos arquivos estáticos.
 // Assim /site/ID sempre entrega o shell do Radar, que então consulta /api/site/ID.
 app.use(express.static(ROOT));
-app.listen(PORT,()=>console.log(`Radar backend V21.12.0 em http://localhost:${PORT}`));
+app.listen(PORT,()=>console.log(`Radar backend V21.13.0 em http://localhost:${PORT}`));

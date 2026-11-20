@@ -1,4 +1,4 @@
-// V21.9.2 — validação e normalização de dados estruturados gerados pela IA.
+// V21.13.0 — validação e normalização de dados estruturados gerados pela IA.
 // Este módulo nunca executa HTML, CSS ou JavaScript fornecido pelo modelo.
 import crypto from 'node:crypto';
 
@@ -8,6 +8,25 @@ const LAYOUTS = new Set(['heroSplit','heroFull','heroCentered','editorial']);
 const SECTIONS = new Set(['about','items','gallery','reviews','contact','faq','team','offers','location']);
 const clean = (value, max, fallback = '') => String(value ?? fallback).replace(/[<>\u0000-\u001f]/g, ' ').trim().slice(0, max);
 const color = (value, fallback) => typeof value === 'string' && HEX.test(value) ? value : fallback;
+
+function priceAmountKey(value) {
+  const normalized = String(value ?? '').replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount.toFixed(2) : null;
+}
+
+// Só aceita valores que aparecem explicitamente no briefing do usuário.
+export function preserveExplicitPrice(value, brief = '') {
+  const candidate = clean(value, 50);
+  if (!candidate) return '';
+  const explicit = new Set();
+  const pattern = /R\$\s*(\d[\d.,]*)|(\d[\d.,]*)\s*reais?/gi;
+  for (const match of String(brief).matchAll(pattern)) {
+    const key = priceAmountKey(match[1] || match[2]);
+    if (key) explicit.add(key);
+  }
+  return explicit.has(priceAmountKey(candidate)) ? candidate : '';
+}
 
 export function normalizeGeneratedSite(input = {}, context = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -19,7 +38,7 @@ export function normalizeGeneratedSite(input = {}, context = {}) {
   const items = rawItems.slice(0, 12).map((item) => ({
     cat: clean(item?.cat, 80, 'Destaques'),
     name: clean(item?.name, 120),
-    price: '',
+    price: preserveExplicitPrice(item?.price, brief),
     desc: clean(item?.desc, 300),
     img: ''
   })).filter(item => item.name);
