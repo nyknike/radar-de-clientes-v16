@@ -24,11 +24,11 @@ test('gerador retorna estrutura validada, sem executar HTML ou JavaScript do mod
   assert.doesNotMatch(server, /res\.send\(generated\.html/);
 });
 
-test('interface do criador e versão V21.13.0 estão presentes', () => {
+test('interface do criador e versão V21.13.1 estão presentes', () => {
   assert.match(html, /CRIADOR DE SITES COM IA/);
   assert.match(html, /id="aiCreateBrief"/);
-  assert.match(html, /app\.js\?v=21\.13\.0/);
-  assert.match(server, /version:"V21\.13\.0"/);
+  assert.match(html, /app\.js\?v=21\.13\.1/);
+  assert.match(server, /version:"V21\.13\.1"/);
 });
 
 test('módulo ausente no deploy exporta normalizador e valida dados de IA', async () => {

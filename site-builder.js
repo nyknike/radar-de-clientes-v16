@@ -1,4 +1,4 @@
-// V21.13.0 — validação e normalização de dados estruturados gerados pela IA.
+// V21.13.1 — validação e normalização de dados estruturados gerados pela IA.
 // Este módulo nunca executa HTML, CSS ou JavaScript fornecido pelo modelo.
 import crypto from 'node:crypto';
 
