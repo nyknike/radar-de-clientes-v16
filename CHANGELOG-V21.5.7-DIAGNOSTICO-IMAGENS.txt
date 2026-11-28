@@ -1,0 +1,10 @@
+RADAR V21.5.7 — DIAGNÓSTICO DA GERAÇÃO DE IMAGENS
+
+- Mantém o fluxo de geração de imagens via Cloudflare Workers AI e o modelo @cf/black-forest-labs/flux-1-schnell, listado no catálogo oficial da Cloudflare.
+- Em falhas HTTP, a interface agora recebe o status e os detalhes de erro fornecidos pela Cloudflare (códigos/mensagens), com limite de tamanho e sem imprimir o token.
+- Para HTTP 401/403, orienta verificar token usado no Render, Account ID e permissão Account > Workers AI > Read.
+- Para HTTP 404, indica possível endpoint/modelo não encontrado.
+- Não adiciona nem altera variáveis de ambiente e não altera Supabase, OpenRouter, Cloudflare Pages ou Mercado Pago.
+- Importante: atualizar permissões na Cloudflare não publica código. O código só entra no Render após commit/push para a branch conectada ao serviço.
+
+Validação feita: node --check e testes automatizados do pacote. Não foi feita chamada real ao Workers AI nem deploy no Render.

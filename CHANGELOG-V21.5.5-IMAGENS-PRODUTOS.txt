@@ -1,0 +1,13 @@
+RADAR V21.5.5 — FOTOS INDIVIDUAIS DE PRODUTOS
+
+- A aba Conteúdo apresenta produtos como cartões com nome, categoria, preço, descrição e prévia de imagem.
+- Cada produto possui a ação “Gerar foto do produto com IA”, usando o endpoint seguro existente do Cloudflare Workers AI.
+- O prompt de geração recebe nome, categoria e descrição do produto para criar uma imagem apropriada ao item, sem texto/preço/logotipo inventado.
+- A imagem gerada é aplicada ao campo img do produto, aparece na prévia do site e permanece no rascunho ao salvar.
+- Upload de imagem própria e URL continuam disponíveis.
+- A geração usa CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID já existentes; não adiciona variáveis nem altera outras integrações. O token precisa de Workers AI: Run e a franquia depende da conta/plano.
+
+VALIDAÇÃO
+- Verificar sintaxe JS e testes automatizados com npm run check e npm test.
+- A geração remota precisa ser testada com a conta Cloudflare real; não há credenciais no pacote.
+- A publicação do site com imagens data URL depende do caminho de publicação e deve ser confirmada antes de uso comercial.

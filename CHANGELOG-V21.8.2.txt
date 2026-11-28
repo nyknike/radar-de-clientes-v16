@@ -1,0 +1,9 @@
+RADAR V21.8.2 — SALVAMENTO E PRÉVIA CONSISTENTES
+
+- Adicionado registro atômico da demonstração: cadastro comercial, projeto e HTML público são persistidos juntos.
+- O envio do link só acontece após confirmação do servidor e leitura de verificação da rota pública.
+- Gravações anteriores do navegador são serializadas para reduzir sobrescritas concorrentes.
+- Mensagens de falha agora mostram o motivo retornado pelo servidor, sem liberar link quando o armazenamento não confirma.
+- Prévia e link público usam o mesmo objeto de projeto normalizado e o mesmo gerador HTML do site.
+
+Nota: a conexão real do Supabase e a publicação externa precisam ser validadas no ambiente Render do usuário.

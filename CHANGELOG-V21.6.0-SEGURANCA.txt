@@ -1,0 +1,20 @@
+RADAR V21.6.0 — SEGURANÇA E CONTROLE DE ACESSO
+
+Correções nesta versão
+1. GET/PUT /api/state exigem ADMIN_PANEL_SECRET.
+2. PUT /api/public-sites/:id exige autenticação.
+3. Edição por IA, geração de imagens, publicação Cloudflare e conexão de domínio exigem autenticação.
+4. GET /api/demo/:id exige autenticação.
+5. Respostas públicas de site e eventos não devolvem o objeto comercial completo nem dados de contato da venda.
+6. O navegador solicita o segredo administrativo sob demanda e o mantém apenas na sessão atual.
+
+Configuração necessária no Render
+- Environment: ADMIN_PANEL_SECRET = segredo forte e exclusivo.
+- Não use o valor de nenhuma API externa como segredo administrativo.
+- Após configurar, reinicie/reimplante o serviço e abra o Radar novamente.
+
+Limites conhecidos
+- Ainda existe um único administrador compartilhado, não contas/permissões individuais por cliente.
+- Aprovação de demonstração é um aceite informal pelo link; não equivale a assinatura ou confirmação de pagamento.
+- Domínio personalizado continua não implementado; a rota retorna 501 até a integração ser concluída.
+- A publicação e o fluxo completo precisam de teste no Render com as credenciais reais.

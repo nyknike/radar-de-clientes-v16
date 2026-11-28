@@ -1,0 +1,20 @@
+RADAR V21.11.0 — CRIADOR DE SITES CONTEXTUAL
+
+ADICIONADO
+- Ação “Criar site com IA” diretamente no cartão de cada empresa encontrada, ao lado das ações anteriores.
+- Removido o lançamento genérico e separado do criador; o fluxo agora exige selecionar uma empresa nos resultados.
+- Preenchimento automático de nome, categoria, telefone, WhatsApp, Instagram e endereço quando esses dados estão disponíveis.
+- Três propostas completas de prompt para cada categoria suportada, com direções visuais distintas: Premium e sofisticado; Moderno e comercial; Autêntico e marcante.
+- Os prompts incluem estrutura, conteúdo, direção visual, orientação de imagens e regras para não inventar dados comerciais.
+- A proposta escolhida é inserida no campo de descrição, que continua livre para edição ou substituição integral.
+- O tipo de negócio e estilo visual são enviados junto com a solicitação de geração.
+
+PRESERVADO
+- “Confirmar e conversar” e “Criar projeto”.
+- Fluxo existente de geração OpenRouter, editor, publicação, reservas, estoque e integrações.
+- Nenhuma variável de ambiente ou chave de API foi alterada.
+
+LIMITES
+- Os três modelos de prompt orientam a geração; não são três temas estáticos prontos. O resultado final depende do modelo OpenRouter e deve ser revisado no editor.
+- Dados ausentes continuam exigindo conferência/preenchimento manual.
+- Não houve deploy no Render nem alteração no GitHub.

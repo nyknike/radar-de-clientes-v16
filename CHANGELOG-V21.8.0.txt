@@ -1,0 +1,23 @@
+RADAR V21.8.0 — PERSISTÊNCIA AMPLIADA E SINCRONIZAÇÃO
+
+Base: V21.7.1
+
+Alterações implementadas
+- O estado central do servidor agora aceita clientData para persistir dados auxiliares do navegador no mesmo registro radar_state do Supabase.
+- O cliente envia automaticamente chaves locais com prefixo radar (exceto as coleções centrais já enviadas separadamente e credenciais administrativas).
+- Escritas em chaves locais Radar passam a agendar sincronização automática com debounce de 900 ms após a sincronização inicial.
+- Na inicialização, os dados auxiliares remotos são restaurados no navegador; chaves locais ainda ausentes no servidor são migradas sem substituir chaves remotas existentes.
+- O endpoint /api/state valida o objeto clientData e limita esse bloco a 12 MB.
+- Versão atualizada para V21.8.0 na interface, backend e package.json.
+
+Preservação
+- Mantidos nomes e uso das variáveis de ambiente existentes.
+- Mantida a tabela public.radar_state; não há migração SQL obrigatória para o campo JSONB adicional.
+- Mantidos Supabase, OpenRouter, Cloudflare Pages, Cloudflare Workers AI e Mercado Pago.
+- Mantida a autenticação administrativa existente.
+
+Limitações e validação necessária
+- Os testes locais não possuem credenciais do Render, Supabase, Cloudflare, OpenRouter ou Mercado Pago; portanto não comprovam conexão real com serviços externos.
+- A publicação pública deve ser validada após deploy com um site de teste, incluindo abertura da URL /site/{id}/ no domínio pages.dev.
+- A sincronização de dados locais auxiliares cobre chaves com prefixo radar. Dados armazenados sob nomes de chave não relacionados ao Radar não são incluídos.
+- A persistência depende de o Supabase estar acessível e de o registro radar_state estar disponível. Falhas de rede não são tratadas como confirmação de salvamento.

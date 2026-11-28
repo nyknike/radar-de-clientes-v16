@@ -1,0 +1,14 @@
+RADAR STUDIO V21.5.2 — CORREÇÃO DO EDITOR DIRETO
+
+Correções nesta revisão:
+- A edição de texto na prévia não recria mais o iframe a cada tecla; isso interrompia a digitação.
+- Clique seleciona textos e imagens; duplo clique entra em edição de texto.
+- Seletores ampliados para títulos, parágrafos, botões, links de navegação e textos de seções.
+- Arraste de elementos de texto selecionados envia deslocamento ao editor principal.
+- Mantida a edição no rascunho local até o usuário salvar/publicar.
+- Nenhuma chave de API ou integração foi alterada.
+
+Limitações conhecidas:
+- A seleção de textos secundários usa o mesmo campo de descrição do modelo atual; edição independente por bloco ainda exige ampliar o modelo de dados.
+- A troca de imagem usa arquivo local; geração de imagem por IA não foi implementada nesta correção.
+- Testes automatizados não substituem validação visual no navegador/celular.

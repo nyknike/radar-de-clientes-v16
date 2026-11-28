@@ -1,0 +1,14 @@
+CORREÇÃO DE ESTRUTURA — V21.13.1
+
+Causa identificada nos logs do Render: server.js importa ./lib/site-builder.js e ./lib/order-utils.js, mas a estrutura enviada anteriormente ao repositório mantinha esses módulos apenas na raiz.
+
+Correções neste pacote:
+- Mantidos os módulos em lib/site-builder.js e lib/order-utils.js, nos caminhos usados pelo servidor.
+- Mantidas cópias de compatibilidade na raiz para preservar referências antigas.
+- Mantidos config/integrations.js e integrations.js.
+- O script npm run check agora verifica também os dois módulos de lib/.
+- Adicionado teste de regressão para confirmar a existência de todos os módulos locais importados pelo servidor.
+
+Nenhuma chave, token ou segredo foi adicionado ao pacote. Nenhuma publicação ou alteração na produção foi realizada.
+
+Limite da validação: os testes locais verificam sintaxe, estrutura e testes automatizados do projeto. Não comprovam conexão real com Supabase, OpenRouter, Cloudflare ou Mercado Pago, nem um deploy no Render.

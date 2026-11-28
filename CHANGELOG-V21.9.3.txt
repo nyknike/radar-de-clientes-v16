@@ -1,0 +1,13 @@
+RADAR V21.9.3 — CORREÇÃO DE INICIALIZAÇÃO
+
+- Corrigido o erro ERR_MODULE_NOT_FOUND relacionado a lib/site-builder.js.
+- O servidor não importa mais no boot um normalizador que não era utilizado pela rota de criação.
+- Mantida a implementação existente de criação de sites por IA no server.js.
+- Mantidas as telas, editor, integrações, configurações e arquivos da base V21.9.2.
+- Atualizados os identificadores de versão da interface, API e package.json.
+- Nenhuma variável de ambiente ou credencial foi alterada.
+
+Validação local:
+- Sintaxe JavaScript verificada.
+- Testes automatizados existentes executados.
+- A validação de deploy e das APIs reais depende do próximo deploy no Render.
