@@ -1,9 +1,0 @@
-RADAR V21.7.0 — AUTENTICAÇÃO POR SESSÃO E EDITOR
-
-1. Autenticação administrativa: senha informada uma vez por sessão; servidor emite cookie HttpOnly, Secure em produção, SameSite=Lax e validade de 12 horas. Requisições protegidas reutilizam a sessão. Sessões são invalidadas após reinício do servidor/expiração quando a assinatura deixa de ser válida ou o segredo muda.
-2. Projetos entre dispositivos: a sincronização passa a tratar o estado persistente do servidor como fonte principal, substituindo o cache local após carregamento; se o banco remoto estiver vazio e houver dados locais, tenta migrá-los sem descartá-los. A abertura ?editor=ID busca primeiro os projetos do servidor. Requer Supabase persistente configurado no Render.
-3. Editor: a ferramenta de Edição manual existente foi adicionada à navegação do editor, em vez de permanecer inacessível.
-4. Tipos de negócio: preservados os módulos e conteúdos específicos já existentes por categoria; não foram removidas funções nem dados.
-
-IMPORTANTE: esta versão mantém compatibilidade temporária com Authorization Bearer legado V21.6.0. Não altera variáveis nem chaves das integrações.
-TESTES: npm run check e npm test. Testes de navegador/Render/Supabase reais ainda precisam ser executados após deploy.
