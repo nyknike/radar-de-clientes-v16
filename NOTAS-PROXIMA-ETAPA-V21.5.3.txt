@@ -1,7 +1,0 @@
-Critérios de aceitação antes de publicar no Render:
-1. Abrir um projeto no celular e confirmar que a prévia fica visível acima dos controles.
-2. Alternar Celular/Computador sem perder o projeto.
-3. Gerar um projeto de lanchonete, conferir nome completo, hero e cards de cardápio.
-4. Gerar um projeto de barbearia, conferir serviços/agendamento e imagens relevantes.
-5. Salvar rascunho, fechar e reabrir para verificar persistência.
-6. Só então testar publicação em um projeto de demonstração, nunca sobrescrever um site oficial sem confirmação.
