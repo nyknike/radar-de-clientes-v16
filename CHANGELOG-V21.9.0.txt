@@ -1,8 +1,0 @@
-V21.9.2
-- Adicionada interface própria para o Criador de Sites com IA.
-- Adicionada rota POST /api/ai/site-create protegida por adminAuth.
-- Geração estruturada compatível com o projeto/editor atual.
-- Adicionada validação de campos, cores, seções e itens retornados pela IA.
-- Adicionado limite de requisições para criação de sites.
-- Atualizados indicadores de versão e cache para V21.9.2.
-- Mantidas as integrações e rotas anteriores.
